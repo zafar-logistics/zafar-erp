@@ -12,14 +12,16 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   indenter TEXT, file_no TEXT UNIQUE, items TEXT, shipper TEXT, 
-                  pi_no TEXT, fc_amount TEXT, unit_price TEXT, eif_expiry TEXT, 
+                  pi_no TEXT, fc_amount TEXT, currency TEXT, unit_price TEXT, eif_expiry TEXT, 
                   etd TEXT, eta TEXT, bl_no TEXT, 
                   bank_docs TEXT, doc_retire TEXT, remarks TEXT)''')
-    # Agar column pehle se nahi hai toh add karne ke liye
-    try:
-        c.execute('ALTER TABLE shipments ADD COLUMN unit_price TEXT')
-    except:
-        pass
+    # Naye columns add karne ke liye (agar pehle se nahi hain)
+    columns = [('currency', 'TEXT'), ('unit_price', 'TEXT')]
+    for col_name, col_type in columns:
+        try:
+            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
+        except:
+            pass
     conn.commit()
 
 init_db()
@@ -69,14 +71,14 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         
         df['Status'] = df.apply(get_status, axis=1)
-        search = st.text_input("🔍 Search (Item, File, Price):")
+        search = st.text_input("🔍 Search Anything:")
         if search:
             df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
         st.dataframe(df.drop(columns=['id']), use_container_width=True)
     else:
         st.info("Data nahi hai.")
 
-# --- 2. NAYI ENTRY (With Unit Price) ---
+# --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
     st.subheader("📝 Nayi Shipment")
     with st.form("add_form", clear_on_submit=True):
@@ -86,8 +88,12 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         items = col3.text_input("Items")
         shipper = col1.text_input("Shipper")
         pi_no = col2.text_input("P.I. No")
-        fc_amount = col3.text_input("Total Amount")
-        unit_price = col1.text_input("Unit Price (e.g. $1.20/kg)") # Naya Column
+        
+        c_col1, c_col2 = st.columns([2, 1])
+        fc_amount = c_col1.text_input("Total Amount")
+        currency = c_col2.selectbox("Currency", ["USD", "CNY", "EUR", "PKR", "GBP"])
+        
+        unit_price = col1.text_input("Unit Price")
         etd = col2.text_input("ETD (DD-Mon-YY)")
         eta = col3.text_input("ETA (DD-Mon-YY)")
         eif_exp = col1.text_input("EIF Expiry")
@@ -98,9 +104,9 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         
         if st.form_submit_button("Save Record"):
             try:
-                c.execute('''INSERT INTO shipments (indenter, file_no, items, shipper, pi_no, fc_amount, unit_price, eif_expiry, etd, eta, bl_no, bank_docs, doc_retire, remarks) 
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                          (indenter, file_no, items, shipper, pi_no, fc_amount, unit_price, eif_exp, etd, eta, bl_no, bank_docs, doc_retire, remarks))
+                c.execute('''INSERT INTO shipments (indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, eif_expiry, etd, eta, bl_no, bank_docs, doc_retire, remarks) 
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                          (indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, eif_exp, etd, eta, bl_no, bank_docs, doc_retire, remarks))
                 conn.commit()
                 st.success("✅ Save ho gaya!")
             except Exception as e:
@@ -114,12 +120,13 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
         file_to_update = st.selectbox("File No:", df['file_no'].tolist())
         row = df[df['file_no'] == file_to_update].iloc[0]
         with st.form("update_form"):
+            u_currency = st.selectbox("Update Currency", ["USD", "CNY", "EUR", "PKR", "GBP"], index=["USD", "CNY", "EUR", "PKR", "GBP"].index(row['currency']) if row['currency'] else 0)
             u_price = st.text_input("Update Unit Price", value=row['unit_price'] if row['unit_price'] else "")
             u_bank = st.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
             u_remarks = st.text_area("Update Remarks", value=row['remarks'])
             if st.form_submit_button("Update"):
-                c.execute('UPDATE shipments SET unit_price=?, bank_docs=?, remarks=? WHERE file_no=?', 
-                          (u_price, u_bank, u_remarks, file_to_update))
+                c.execute('UPDATE shipments SET currency=?, unit_price=?, bank_docs=?, remarks=? WHERE file_no=?', 
+                          (u_currency, u_price, u_bank, u_remarks, file_to_update))
                 conn.commit()
                 st.success("✅ Updated!")
                 st.rerun()
