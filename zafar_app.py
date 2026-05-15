@@ -1,4 +1,26 @@
 import streamlit as st
+
+# --- PASSWORD CHECK ---
+def check_password():
+    def password_entered():
+        if st.session_state["password"] == "zafar786": # Aap apna password badal sakte hain
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    if "password_correct" not in st.session_state:
+        st.text_input("Please enter Password", type="password", on_change=password_entered, key="password")
+        return False
+    elif not st.session_state["password_correct"]:
+        st.text_input("Incorrect Password", type="password", on_change=password_entered, key="password")
+        return False
+    else:
+        return True
+
+if not check_password():
+    st.stop()
+    import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
