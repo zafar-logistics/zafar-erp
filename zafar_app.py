@@ -42,7 +42,7 @@ st.sidebar.title("🔐 Access Control")
 if not st.session_state["admin_mode"]:
     pwd = st.sidebar.text_input("Admin Password:", type="password")
     if st.sidebar.button("Login as Admin"):
-        if pwd == "zafar786":
+        if pwd == "zafar9863":
             st.session_state["admin_mode"] = True
             st.rerun()
         else:
