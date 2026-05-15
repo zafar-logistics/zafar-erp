@@ -12,9 +12,14 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   indenter TEXT, file_no TEXT UNIQUE, items TEXT, shipper TEXT, 
-                  pi_no TEXT, fc_amount TEXT, eif_expiry TEXT, 
+                  pi_no TEXT, fc_amount TEXT, unit_price TEXT, eif_expiry TEXT, 
                   etd TEXT, eta TEXT, bl_no TEXT, 
                   bank_docs TEXT, doc_retire TEXT, remarks TEXT)''')
+    # Agar column pehle se nahi hai toh add karne ke liye
+    try:
+        c.execute('ALTER TABLE shipments ADD COLUMN unit_price TEXT')
+    except:
+        pass
     conn.commit()
 
 init_db()
@@ -22,16 +27,15 @@ init_db()
 # --- INTERFACE SETUP ---
 st.set_page_config(page_title="Zafar Logistics ERP", layout="wide")
 
-# --- LOGIN LOGIC (Admin vs Guest) ---
 if "admin_mode" not in st.session_state:
     st.session_state["admin_mode"] = False
 
 # Sidebar for Login
 st.sidebar.title("🔐 Access Control")
 if not st.session_state["admin_mode"]:
-    pwd = st.sidebar.text_input("Admin Password dalo (Edit ke liye):", type="password")
+    pwd = st.sidebar.text_input("Admin Password dalo:", type="password")
     if st.sidebar.button("Login as Admin"):
-        if pwd == "Items420!!": # Yahan apna password badal sakte hain
+        if pwd == "zafar786":
             st.session_state["admin_mode"] = True
             st.rerun()
         else:
@@ -44,14 +48,13 @@ else:
 
 st.title("🛡️ Zafar Logistics ERP - Master System")
 
-# --- MENU OPTIONS (Restricted based on Login) ---
 if st.session_state["admin_mode"]:
     menu = st.sidebar.radio("Option Chunien:", ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"])
 else:
-    st.sidebar.info("📖 Aap 'Read-Only' mode mein hain.")
-    menu = "📊 Dashboard" # Guest sirf Dashboard dekh sakta hai
+    st.sidebar.info("📖 Read-Only Mode")
+    menu = "📊 Dashboard"
 
-# --- 1. DASHBOARD (Sab ke liye) ---
+# --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
     df = pd.read_sql('SELECT * FROM shipments', conn)
     if not df.empty:
@@ -66,16 +69,16 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         
         df['Status'] = df.apply(get_status, axis=1)
-        search = st.text_input("🔍 Search Anything (Item, File, Shipper):")
+        search = st.text_input("🔍 Search (Item, File, Price):")
         if search:
             df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
         st.dataframe(df.drop(columns=['id']), use_container_width=True)
     else:
-        st.info("Dashboard khali hai.")
+        st.info("Data nahi hai.")
 
-# --- 2. NAYI ENTRY (Sirf Admin) ---
+# --- 2. NAYI ENTRY (With Unit Price) ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
-    st.subheader("📝 Nayi Shipment ki Tafseelat")
+    st.subheader("📝 Nayi Shipment")
     with st.form("add_form", clear_on_submit=True):
         col1, col2, col3 = st.columns(3)
         indenter = col1.text_input("Indenter")
@@ -83,39 +86,40 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         items = col3.text_input("Items")
         shipper = col1.text_input("Shipper")
         pi_no = col2.text_input("P.I. No")
-        fc_amount = col3.text_input("Amount")
-        etd = col1.text_input("ETD (DD-Mon-YY)", value=datetime.now().strftime("%d-%b-%y"))
-        eta = col2.text_input("ETA (DD-Mon-YY)", value="-")
-        eif_exp = col3.text_input("EIF Expiry", value="-")
-        bl_no = col1.text_input("BL / LC No")
-        bank_docs = col2.selectbox("Bank Docs", ["Pending", "OK"])
-        doc_retire = col3.text_input("Retire Date", value="-")
-        remarks = st.text_area("Remarks / DHL Tracking")
+        fc_amount = col3.text_input("Total Amount")
+        unit_price = col1.text_input("Unit Price (e.g. $1.20/kg)") # Naya Column
+        etd = col2.text_input("ETD (DD-Mon-YY)")
+        eta = col3.text_input("ETA (DD-Mon-YY)")
+        eif_exp = col1.text_input("EIF Expiry")
+        bl_no = col2.text_input("BL / LC No")
+        bank_docs = col3.selectbox("Bank Docs", ["Pending", "OK"])
+        doc_retire = col1.text_input("Retire Date", value="-")
+        remarks = st.text_area("Remarks")
         
         if st.form_submit_button("Save Record"):
             try:
-                c.execute('INSERT INTO shipments (indenter, file_no, items, shipper, pi_no, fc_amount, eif_expiry, etd, eta, bl_no, bank_docs, doc_retire, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)', 
-                          (indenter, file_no, items, shipper, pi_no, fc_amount, eif_exp, etd, eta, bl_no, bank_docs, doc_retire, remarks))
+                c.execute('''INSERT INTO shipments (indenter, file_no, items, shipper, pi_no, fc_amount, unit_price, eif_expiry, etd, eta, bl_no, bank_docs, doc_retire, remarks) 
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                          (indenter, file_no, items, shipper, pi_no, fc_amount, unit_price, eif_exp, etd, eta, bl_no, bank_docs, doc_retire, remarks))
                 conn.commit()
-                st.success(f"✅ File {file_no} save ho gayi!")
+                st.success("✅ Save ho gaya!")
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# --- 3. UPDATE / EDIT (Sirf Admin) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
-    st.subheader("🔄 Shipment Update Karein")
+    st.subheader("🔄 Update Data")
     df = pd.read_sql('SELECT * FROM shipments', conn)
     if not df.empty:
-        file_to_update = st.selectbox("Update ke liye File No chunein:", df['file_no'].tolist())
+        file_to_update = st.selectbox("File No:", df['file_no'].tolist())
         row = df[df['file_no'] == file_to_update].iloc[0]
         with st.form("update_form"):
-            u_col1, u_col2 = st.columns(2)
-            u_bank = u_col1.selectbox("Bank Docs Status", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
-            u_retire = u_col2.text_input("Document Retire Date", value=row['doc_retire'])
+            u_price = st.text_input("Update Unit Price", value=row['unit_price'] if row['unit_price'] else "")
+            u_bank = st.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
             u_remarks = st.text_area("Update Remarks", value=row['remarks'])
-            if st.form_submit_button("Update Data"):
-                c.execute('UPDATE shipments SET bank_docs=?, doc_retire=?, remarks=? WHERE file_no=?', 
-                          (u_bank, u_retire, u_remarks, file_to_update))
+            if st.form_submit_button("Update"):
+                c.execute('UPDATE shipments SET unit_price=?, bank_docs=?, remarks=? WHERE file_no=?', 
+                          (u_price, u_bank, u_remarks, file_to_update))
                 conn.commit()
-                st.success(f"✅ Update Done!")
+                st.success("✅ Updated!")
                 st.rerun()
