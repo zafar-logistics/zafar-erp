@@ -9,24 +9,17 @@ conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
+    # 1. Main Table (Sirf LC aur Shipping Details ke liye)
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
-                  items TEXT, shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
-                  unit_price TEXT, weight TEXT, weight_unit TEXT, shipment_type TEXT, 
-                  etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
+                  shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
+                  shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # Saare zaroori columns check aur add karne ke liye
-    new_cols = [
-        ('bank_name', 'TEXT'), ('company_name', 'TEXT'),
-        ('currency', 'TEXT'), ('unit_price', 'TEXT'),
-        ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('shipment_type', 'TEXT')
-    ]
-    for col_name, col_type in new_cols:
-        try:
-            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
-        except:
-            pass
+    # 2. Items Table (Har Item ki Qty aur Rate alag rakhne ke liye)
+    c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  file_no TEXT, item_name TEXT, qty TEXT, unit TEXT, unit_price TEXT)''')
     conn.commit()
 
 init_db()
@@ -55,11 +48,10 @@ else:
 
 st.title("🛡️ Zafar Logistics ERP - Professional Master System")
 
-# --- DATA LISTS ---
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
 CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
-UNITS = ["KG", "MT"]
+UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 
 if st.session_state["admin_mode"]:
     menu = st.sidebar.radio("Option Chunien:", ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"])
@@ -67,137 +59,102 @@ else:
     st.sidebar.info("📖 Read-Only Mode")
     menu = "📊 Dashboard"
 
-# --- 1. DASHBOARD (PERFECT TABLE VIEW) ---
+# --- 1. DASHBOARD (WORLD STANDARD TABLE VIEW) ---
 if menu == "📊 Dashboard":
-    df = pd.read_sql('SELECT * FROM shipments', conn)
+    # SQL Query jo dono tables ko jor kar single excel table banati hai
+    query = '''
+        SELECT 
+            s.company_name, s.bank_name, s.file_no,
+            i.item_name, i.qty, i.unit, i.unit_price,
+            s.fc_amount, s.currency, s.shipment_type,
+            s.etd, s.eta, s.bl_no, s.bank_docs, s.remarks
+        FROM shipments s
+        LEFT JOIN shipment_items i ON s.file_no = i.file_no
+    '''
+    df = pd.read_sql(query, conn)
+    
     if not df.empty:
-        today = datetime.now()
-        def get_status(row):
-            try:
-                eta = pd.to_datetime(row['eta'], errors='coerce')
-                etd = pd.to_datetime(row['etd'], errors='coerce')
-                if pd.notnull(eta) and eta <= today: return "✅ Arrived"
-                if pd.notnull(etd) and etd <= today: return "🚢 In Transit"
-                return "📄 LC Opened"
-            except: return "Pending"
-        
-        df['Status'] = df.apply(get_status, axis=1)
-        
-        # Weight aur Unit ko merge karne ke liye logic
-        def format_weight(row):
-            w = row['weight'] if row['weight'] else ""
-            u = row['weight_unit'] if row['weight_unit'] else ""
-            return f"{w} {u}".strip()
-        df['weight_qty'] = df.apply(format_weight, axis=1)
-        
         # Filters
         st.write("### 🔍 Filters")
         f1, f2, f3 = st.columns(3)
         sel_comp = f1.multiselect("Company:", COMPANIES)
         sel_bank = f2.multiselect("Bank:", BANKS)
-        search = f3.text_input("Search (File, Item, Price, Weight):")
+        search = f3.text_input("Search (File, Item, Shipper):")
 
         if sel_comp: df = df[df['company_name'].isin(sel_comp)]
         if sel_bank: df = df[df['bank_name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # --- BOSS MAIDEN COLUMN SEQUENCING ---
-        cols_order = [
-            'company_name', 'bank_name', 'file_no', 'items', 'fc_amount', 'currency', 
-            'unit_price', 'weight_qty', 'shipment_type', 'Status', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks'
-        ]
-        
-        # Safe handling for rendering
-        display_cols = [c for c in cols_order if c in df.columns]
-        df_display = df[display_cols].fillna("")
-        
-        # Renaming columns for professional look
+        # Formatting columns for clean display
+        df_display = df.fillna("")
         df_display.columns = [c.replace('_', ' ').title() for c in df_display.columns]
         
-        # Output as one single complete table grid
+        # Displaying the complete grid
         st.dataframe(df_display, use_container_width=True, hide_index=True)
     else:
         st.info("Data nahi hai.")
 
-# --- 2. NAYI ENTRY ---
+# --- 2. NAYI ENTRY (WITH SEPARATE ITEM FIELDS) ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
-    st.subheader("📝 Nayi Shipment Details")
+    st.subheader("📝 Nayi Shipment & Multiple Items Entry")
     with st.form("add_form", clear_on_submit=True):
         col_top1, col_top2 = st.columns(2)
         company_name = col_top1.selectbox("Company Name", COMPANIES)
         bank_name = col_top2.selectbox("Bank Name", BANKS)
         
-        c1, c2 = st.columns(2)
+        c1, c2, c3, c4 = st.columns(4)
         indenter = c1.text_input("Indenter")
-        file_no = c2.text_input("File No")
-        
-        # Items ke liye bada box jahan enter daba kar alag lines mein specs likhein
-        st.info("💡 Tip: Ek se zyada items hain toh har item aur uski details alag-alag line mein enter karhein.")
-        items = st.text_area("Items Breakdown (e.g., TBHQ - 5000 KG\nSodium Diacetate - 7500 KG)", height=100)
-        
-        c3, c4 = st.columns(2)
+        file_no = c2.text_input("File No (Unique)")
         shipper = c3.text_input("Shipper")
         pi_no = c4.text_input("P.I. No")
         
-        am1, am2 = st.columns([2, 1])
-        fc_amount = am1.text_input("Total Invoice Amount")
+        am1, am2, am3 = st.columns([2, 1, 1])
+        fc_amount = am1.text_input("Total LC Value")
         currency = am2.selectbox("Currency", CURRENCIES)
+        ship_type = am3.selectbox("Type", ["FCL", "LCL"])
         
-        p1, p2, p3, p4 = st.columns([2, 1, 2, 2])
-        unit_price = p1.text_input("Unit Price")
-        weight = p2.text_input("Weight")
-        weight_unit = p3.selectbox("Unit", UNITS)
-        ship_type = p4.selectbox("Type", ["FCL", "LCL"])
+        st.markdown("---")
+        st.markdown("##### 🛒 Items Breakdown (Har Item ki details alag likhein)")
         
-        d1, d2, d3 = st.columns(3)
+        # Form mein 4 items ke alag alag saaf khane
+        items_inputs = []
+        for i in range(1, 5):
+            st.write(f"**Item #{i}:**")
+            it1, it2, it3, it4 = st.columns([4, 2, 2, 3])
+            name = it1.text_input("Item Name", key=f"add_name_{i}", placeholder="e.g. TBHQ")
+            qty = it2.text_input("Qty", key=f"add_qty_{i}", placeholder="e.g. 5000")
+            unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
+            price = it4.text_input("Unit Price", key=f"add_price_{i}", placeholder="e.g. 6.920")
+            if name:
+                items_inputs.append((name, qty, unit, price))
+                
+        st.markdown("---")
+        d1, d2, d3, d4 = st.columns(4)
         etd = d1.text_input("ETD")
         eta = d2.text_input("ETA")
         bl_no = d3.text_input("BL / LC No")
-        
-        bank_docs = st.selectbox("Bank Docs", ["Pending", "OK"])
+        bank_docs = d4.selectbox("Bank Docs", ["Pending", "OK"])
         remarks = st.text_area("Remarks")
         
         if st.form_submit_button("Save Record"):
-            try:
-                c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, weight_unit, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                          (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, weight_unit, ship_type, etd, eta, bl_no, bank_docs, remarks))
-                conn.commit()
-                st.success("✅ Nayi entry table mein save ho gayi!")
-            except Exception as e:
-                st.error(f"Error: {e}")
+            if not file_no:
+                st.error("File No likhna zaroori hai!")
+            else:
+                try:
+                    # 1. Master shipment save karein
+                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
+                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                              (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
+                    
+                    # 2. Saare items ko looping se unki table mein save karein
+                    for item in items_inputs:
+                        c.execute('''INSERT INTO shipment_items (file_no, item_name, qty, unit, unit_price) 
+                                     VALUES (?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3]))
+                    conn.commit()
+                    st.success("✅ Shipment aur saare items international standard par save ho gaye!")
+                except Exception as e:
+                    st.error(f"Error: File No pehle se majood hai ya data ghalat hai. ({e})")
 
-# --- 3. UPDATE / EDIT ---
+# --- 3. UPDATE / EDIT (WITH SEPARATE ITEM FIELDS) ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
-    st.subheader("🔄 Update Data")
-    df = pd.read_sql('SELECT * FROM shipments', conn)
-    if not df.empty:
-        file_to_update = st.selectbox("Select File No to Update:", df['file_no'].tolist())
-        row = df[df['file_no'] == file_to_update].iloc[0]
-        with st.form("update_form"):
-            u1, u2 = st.columns(2)
-            u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if 'company_name' in row and row['company_name'] in COMPANIES else 0)
-            u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if 'bank_name' in row and row['bank_name'] in BANKS else 0)
-            
-            u_items = st.text_area("Update Items Specs", value=row['items'] if row['items'] else "", height=100)
-            
-            u_amount = u1.text_input("Total Amount", value=row['fc_amount'] if row['fc_amount'] else "")
-            u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
-            
-            u_price = u1.text_input("Unit Price", value=row['unit_price'] if row['unit_price'] else "")
-            u_weight = u1.text_input("Weight", value=row['weight'] if row['weight'] else "")
-            u_unit = u2.selectbox("Weight Unit", UNITS, index=UNITS.index(row['weight_unit']) if 'weight_unit' in row and row['weight_unit'] in UNITS else 0)
-            
-            u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
-            u_docs = st.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
-            u_remarks = st.text_area("Remarks", value=row['remarks'])
-            
-            if st.form_submit_button("Update"):
-                c.execute('''UPDATE shipments SET 
-                             company_name=?, bank_name=?, items=?, fc_amount=?, currency=?, 
-                             unit_price=?, weight=?, weight_unit=?, shipment_type=?, bank_docs=?, remarks=? 
-                             WHERE file_no=?''', 
-                          (u_comp, u_bank, u_items, u_amount, u_curr, u_price, u_weight, u_unit, u_type, u_docs, u_remarks, file_to_update))
-                conn.commit()
-                st.success("✅ Updated!")
-                st.rerun()
+    st.subheader("🔄 Update Master & Items Data")
