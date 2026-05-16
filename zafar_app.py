@@ -13,14 +13,14 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   items TEXT, shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
-                  unit_price TEXT, weight TEXT, shipment_type TEXT, etd TEXT, eta TEXT, 
-                  bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
+                  unit_price TEXT, weight TEXT, weight_unit TEXT, shipment_type TEXT, 
+                  etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
     # Saare zaroori columns check aur add karne ke liye
     new_cols = [
         ('bank_name', 'TEXT'), ('company_name', 'TEXT'),
         ('currency', 'TEXT'), ('unit_price', 'TEXT'),
-        ('weight', 'TEXT'), ('shipment_type', 'TEXT')
+        ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('shipment_type', 'TEXT')
     ]
     for col_name, col_type in new_cols:
         try:
@@ -59,6 +59,7 @@ st.title("🛡️ Zafar Logistics ERP - Master System")
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
 CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
+UNITS = ["KG", "MT"]
 
 if st.session_state["admin_mode"]:
     menu = st.sidebar.radio("Option Chunien:", ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"])
@@ -82,6 +83,14 @@ if menu == "📊 Dashboard":
         
         df['Status'] = df.apply(get_status, axis=1)
         
+        # Weight aur Unit ko jor kar dikhane ke liye logic
+        def format_weight(row):
+            w = row['weight'] if row['weight'] else ""
+            u = row['weight_unit'] if row['weight_unit'] else ""
+            return f"{w} {u}".strip()
+        
+        df['Total Weight'] = df.apply(format_weight, axis=1)
+        
         # Filters
         st.write("### 🔍 Filters")
         f1, f2, f3 = st.columns(3)
@@ -93,15 +102,14 @@ if menu == "📊 Dashboard":
         if sel_bank: df = df[df['bank_name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Sahi Sequence Columns ka
+        # Sequence Columns ka
         cols_order = [
             'company_name', 'bank_name', 'file_no', 'items', 'shipper', 
-            'fc_amount', 'currency', 'unit_price', 'weight', 'shipment_type', 
+            'fc_amount', 'currency', 'unit_price', 'Total Weight', 'shipment_type', 
             'Status', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks'
         ]
         display_cols = [c for c in cols_order if c in df.columns]
         
-        # None values ko saaf dekhne ke liye empty string se replace kar rahe hain
         df_display = df[display_cols].fillna("")
         st.dataframe(df_display, use_container_width=True)
     else:
@@ -126,10 +134,12 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         fc_amount = am1.text_input("Total Amount")
         currency = am2.selectbox("Currency", CURRENCIES)
         
-        p1, p2, p3 = st.columns(3)
+        # Weight aur Unit dono sath sath
+        p1, p2, p3, p4 = st.columns([2, 1, 2, 2])
         unit_price = p1.text_input("Unit Price")
         weight = p2.text_input("Weight")
-        ship_type = p3.selectbox("Type", ["FCL", "LCL"])
+        weight_unit = p3.selectbox("Unit", UNITS)
+        ship_type = p4.selectbox("Type", ["FCL", "LCL"])
         
         d1, d2, d3 = st.columns(3)
         etd = d1.text_input("ETD")
@@ -141,9 +151,9 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         
         if st.form_submit_button("Save Record"):
             try:
-                c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                          (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, ship_type, etd, eta, bl_no, bank_docs, remarks))
+                c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, weight_unit, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                          (company_name, bank_name, indenter, file_no, items, shipper, pi_no, fc_amount, currency, unit_price, weight, weight_unit, ship_type, etd, eta, bl_no, bank_docs, remarks))
                 conn.commit()
                 st.success("✅ Record save ho gaya!")
             except Exception as e:
@@ -161,12 +171,15 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if row['company_name'] in COMPANIES else 0)
             u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if row['bank_name'] in BANKS else 0)
             
-            # Amount aur Currency Update Option
             u_amount = u1.text_input("Total Amount", value=row['fc_amount'] if row['fc_amount'] else "")
             u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
             
             u_price = u1.text_input("Unit Price", value=row['unit_price'] if row['unit_price'] else "")
-            u_weight = u2.text_input("Weight", value=row['weight'] if row['weight'] else "")
+            
+            # Update mein weight aur unit
+            u_weight = u1.text_input("Weight", value=row['weight'] if row['weight'] else "")
+            u_unit = u2.selectbox("Weight Unit", UNITS, index=UNITS.index(row['weight_unit']) if row['weight_unit'] in UNITS else 0)
+            
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
             u_docs = st.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
             u_remarks = st.text_area("Remarks", value=row['remarks'])
@@ -174,9 +187,9 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             if st.form_submit_button("Update Record"):
                 c.execute('''UPDATE shipments SET 
                              company_name=?, bank_name=?, fc_amount=?, currency=?, 
-                             unit_price=?, weight=?, shipment_type=?, bank_docs=?, remarks=? 
+                             unit_price=?, weight=?, weight_unit=?, shipment_type=?, bank_docs=?, remarks=? 
                              WHERE file_no=?''', 
-                          (u_comp, u_bank, u_amount, u_curr, u_price, u_weight, u_type, u_docs, u_remarks, file_to_update))
+                          (u_comp, u_bank, u_amount, u_curr, u_price, u_weight, u_unit, u_type, u_docs, u_remarks, file_to_update))
                 conn.commit()
                 st.success("✅ Updated Successfully!")
                 st.rerun()
