@@ -9,31 +9,17 @@ conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
-    # 1. Main Shipments Table Create Karein (Agar nahi bana)
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
                   shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # 2. International Standard Items Table Create Karein (Agar nahi bani)
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, qty TEXT, unit TEXT, unit_price TEXT)''')
-    
-    # Extra check: Purane Master table mein agar naye columns missing hain toh add karein
-    new_cols = [
-        ('bank_name', 'TEXT'), ('company_name', 'TEXT'),
-        ('currency', 'TEXT'), ('shipment_type', 'TEXT')
-    ]
-    for col_name, col_type in new_cols:
-        try:
-            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
-        except:
-            pass
     conn.commit()
 
-# Tables ko sab se pehle har haal mein dakhil aur check karein
 init_db()
 
 # --- INTERFACE SETUP ---
@@ -71,18 +57,18 @@ else:
     st.sidebar.info("📖 Read-Only Mode")
     menu = "📊 Dashboard"
 
-# --- 1. DASHBOARD ---
+# --- 1. DASHBOARD (FIXED MULTI-ROW & SERIAL NO) ---
 if menu == "📊 Dashboard":
-    # SQL Query jo safely dono tables ko jor kar excel view banati hai
+    # 🌟 Perfect Query: Agar items table mein data mil jaye toh usko priority de
     query = '''
         SELECT 
             s.company_name AS [Company Name], 
             s.bank_name AS [Bank Name], 
             s.file_no AS [File No],
-            IFNULL(i.item_name, s.items) AS [Item Name], 
-            IFNULL(i.qty, s.weight) AS [Quantity], 
-            IFNULL(i.unit, s.weight_unit) AS [Unit], 
-            IFNULL(i.unit_price, s.unit_price) AS [Unit Price],
+            CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE s.items END AS [Item Name],
+            CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE s.weight END AS [Quantity],
+            CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE s.weight_unit END AS [Unit],
+            CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE s.unit_price END AS [Unit Price],
             s.fc_amount AS [Total LC Value], 
             s.currency AS [Currency], 
             s.shipment_type AS [Type],
@@ -94,12 +80,8 @@ if menu == "📊 Dashboard":
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    try:
-        df = pd.read_sql(query, conn)
-    except Exception as e:
-        # Fallback agar abhi bhi read mein masla ho
-        df = pd.read_sql('SELECT * FROM shipments', conn)
-
+    df = pd.read_sql(query, conn)
+    
     if not df.empty:
         # Filters
         st.write("### 🔍 Filters")
@@ -112,8 +94,13 @@ if menu == "📊 Dashboard":
         if sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Displaying the complete clean grid
-        st.dataframe(df.fillna(""), use_container_width=True, hide_index=True)
+        # 🌟 SERIAL NUMBER LOGIC (Hamesha 1 se shuru hoga aur continuous chalega)
+        df.reset_index(drop=True, inplace=True)
+        df.index = df.index + 1
+        df.index.name = "S.No"
+
+        # Table Display
+        st.dataframe(df.fillna(""), use_container_width=True, hide_index=False)
     else:
         st.info("System mein koi data majood nahi hai.")
 
@@ -137,16 +124,16 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         ship_type = am3.selectbox("Type", ["FCL", "LCL"])
         
         st.markdown("---")
-        st.markdown("##### 🛒 Items Breakdown (Har Item ki details alag likhein)")
+        st.markdown("##### 🛒 Items Breakdown")
         
         items_inputs = []
         for i in range(1, 5):
             st.write(f"**Item #{i}:**")
             it1, it2, it3, it4 = st.columns([4, 2, 2, 3])
-            name = it1.text_input("Item Name", key=f"add_name_{i}", placeholder="e.g. TBHQ")
-            qty = it2.text_input("Qty", key=f"add_qty_{i}", placeholder="e.g. 5000")
+            name = it1.text_input("Item Name", key=f"add_name_{i}")
+            qty = it2.text_input("Qty", key=f"add_qty_{i}")
             unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
-            price = it4.text_input("Unit Price", key=f"add_price_{i}", placeholder="e.g. 6.920")
+            price = it4.text_input("Unit Price", key=f"add_price_{i}")
             if name:
                 items_inputs.append((name, qty, unit, price))
                 
@@ -171,9 +158,10 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, qty, unit, unit_price) 
                                      VALUES (?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3]))
                     conn.commit()
-                    st.success("✅ Shipment aur saare items international standard par save ho gaye!")
+                    st.success("✅ Shipment aur saare items kamyabi se save ho gaye!")
+                    st.rerun()
                 except Exception as e:
-                    st.error(f"Error: File No pehle se majood hai ya data ghalat hai.")
+                    st.error("Error: File No pehle se majood hai.")
 
 # --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
