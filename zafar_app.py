@@ -74,11 +74,14 @@ else:
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
+    # 🌟 INDENTER aur SHIPPER (Supplier) columns ko query mein add kiya hai
     query = '''
         SELECT 
             s.company_name AS [Company Name], 
             s.bank_name AS [Bank Name], 
             s.file_no AS [File No],
+            IFNULL(s.indenter, "-") AS [Indenter],
+            IFNULL(s.shipper, "-") AS [Supplier Name],
             CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "") END AS [Item Name],
             CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "") END AS [Quantity],
             CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "") END AS [Unit],
@@ -101,7 +104,7 @@ if menu == "📊 Dashboard":
         df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
-        # 🌟 Auto Status Generator Logic
+        # Auto Status Generator Logic
         today = datetime.now()
         def get_status(row):
             try:
@@ -115,7 +118,7 @@ if menu == "📊 Dashboard":
         
         df['Status'] = df.apply(get_status, axis=1)
 
-        # 🌟 EXCEL COMPATIBLE BACKUP BUTTON (No Module Required)
+        # Excel Compatible Backup Button
         st.write("### 📥 System Backup")
         try:
             csv_data = df.to_csv(index=False).encode('utf-8')
@@ -135,17 +138,17 @@ if menu == "📊 Dashboard":
         f1, f2, f3 = st.columns(3)
         sel_comp = f1.multiselect("Company:", COMPANIES)
         sel_bank = f2.multiselect("Bank:", BANKS)
-        search = f3.text_input("Search (File, Item, Shipper):")
+        search = f3.text_input("Search (File, Item, Supplier, Indenter):")
 
         if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # --- RE-SEQUENCING WITH STATUS COLUMN IN PERFECT PLACE ---
+        # --- PERFECT COLUMN SEQUENCING IN TABLE ---
         cols_order = [
-            'Company Name', 'Bank Name', 'File No', 'Item Name', 'Quantity', 'Unit', 
-            'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 
-            'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+            'Item Name', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 
+            'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
         ]
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
@@ -234,6 +237,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if 'company_name' in row and row['company_name'] in COMPANIES else 0)
             u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if 'bank_name' in row and row['bank_name'] in BANKS else 0)
             
+            # Form ke andari indenter aur shipper editable rakhne ke liye fields
+            u_indenter = u1.text_input("Indenter", value=row['indenter'] if row['indenter'] else "")
+            u_shipper = u2.text_input("Shipper (Supplier)", value=row['shipper'] if row['shipper'] else "")
+            
             u_amount = u1.text_input("Total LC Amount", value=row['fc_amount'] if row['fc_amount'] else "")
             u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
@@ -272,10 +279,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             
             if st.form_submit_button("Update Master & Items"):
                 c.execute('''UPDATE shipments SET 
-                             company_name=?, bank_name=?, fc_amount=?, currency=?, 
+                             company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, 
                              shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? 
                              WHERE file_no=?''', 
-                          (u_comp, u_bank, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
+                          (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
                 
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
