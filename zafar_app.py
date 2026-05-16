@@ -16,7 +16,6 @@ def init_db():
                   unit_price TEXT, weight TEXT, weight_unit TEXT, shipment_type TEXT, 
                   etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # Saare zaroori columns check aur add karne ke liye
     new_cols = [
         ('bank_name', 'TEXT'), ('company_name', 'TEXT'),
         ('currency', 'TEXT'), ('unit_price', 'TEXT'),
@@ -83,7 +82,6 @@ if menu == "📊 Dashboard":
         
         df['Status'] = df.apply(get_status, axis=1)
         
-        # Weight aur Unit ko jor kar dikhane ke liye logic
         def format_weight(row):
             w = row['weight'] if row['weight'] else ""
             u = row['weight_unit'] if row['weight_unit'] else ""
@@ -102,7 +100,6 @@ if menu == "📊 Dashboard":
         if sel_bank: df = df[df['bank_name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Sequence Columns ka
         cols_order = [
             'company_name', 'bank_name', 'file_no', 'items', 'shipper', 
             'fc_amount', 'currency', 'unit_price', 'Total Weight', 'shipment_type', 
@@ -123,20 +120,23 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         company_name = col_top1.selectbox("Company Name", COMPANIES)
         bank_name = col_top2.selectbox("Bank Name", BANKS)
         
-        c1, c2, c3 = st.columns(3)
+        c1, c2 = st.columns(2)
         indenter = c1.text_input("Indenter")
         file_no = c2.text_input("File No")
-        items = c3.text_input("Items")
-        shipper = c1.text_input("Shipper")
-        pi_no = c2.text_input("P.I. No")
+        
+        # Items ke liye bada box banaya taake zyada items enter ho saken
+        items = st.text_area("Items (Agar ek se zyada hain, toh har item alag line mein likhein)")
+        
+        c3, c4 = st.columns(2)
+        shipper = c3.text_input("Shipper")
+        pi_no = c4.text_input("P.I. No")
         
         am1, am2 = st.columns([2, 1])
         fc_amount = am1.text_input("Total Amount")
         currency = am2.selectbox("Currency", CURRENCIES)
         
-        # Weight aur Unit dono sath sath
         p1, p2, p3, p4 = st.columns([2, 1, 2, 2])
-        unit_price = p1.text_input("Unit Price")
+        unit_price = p1.text_input("Unit Price (e.g. $1.20 / $1.50)")
         weight = p2.text_input("Weight")
         weight_unit = p3.selectbox("Unit", UNITS)
         ship_type = p4.selectbox("Type", ["FCL", "LCL"])
@@ -171,12 +171,13 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if row['company_name'] in COMPANIES else 0)
             u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if row['bank_name'] in BANKS else 0)
             
+            # Items udhar bhi badi text area banadi
+            u_items = st.text_area("Update Items", value=row['items'] if row['items'] else "")
+            
             u_amount = u1.text_input("Total Amount", value=row['fc_amount'] if row['fc_amount'] else "")
             u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
             
             u_price = u1.text_input("Unit Price", value=row['unit_price'] if row['unit_price'] else "")
-            
-            # Update mein weight aur unit
             u_weight = u1.text_input("Weight", value=row['weight'] if row['weight'] else "")
             u_unit = u2.selectbox("Weight Unit", UNITS, index=UNITS.index(row['weight_unit']) if row['weight_unit'] in UNITS else 0)
             
@@ -186,10 +187,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             
             if st.form_submit_button("Update Record"):
                 c.execute('''UPDATE shipments SET 
-                             company_name=?, bank_name=?, fc_amount=?, currency=?, 
+                             company_name=?, bank_name=?, items=?, fc_amount=?, currency=?, 
                              unit_price=?, weight=?, weight_unit=?, shipment_type=?, bank_docs=?, remarks=? 
                              WHERE file_no=?''', 
-                          (u_comp, u_bank, u_amount, u_curr, u_price, u_weight, u_unit, u_type, u_docs, u_remarks, file_to_update))
+                          (u_comp, u_bank, u_items, u_amount, u_curr, u_price, u_weight, u_unit, u_type, u_docs, u_remarks, file_to_update))
                 conn.commit()
                 st.success("✅ Updated Successfully!")
                 st.rerun()
