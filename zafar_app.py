@@ -9,25 +9,21 @@ conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
-    # 1. Main Shipments Table
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
                   shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # 2. International Items Table (With Costing Column)
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
     
-    # Check if actual_costing exists in shipment_items, if not, add it safely
     try:
         c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
     except:
         pass
         
-    # Extra fallback check for main shipments table columns
     fallback_cols = [
         ('bank_name', 'TEXT'), ('company_name', 'TEXT'), ('currency', 'TEXT'), 
         ('shipment_type', 'TEXT'), ('items', 'TEXT'), ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('unit_price', 'TEXT')
@@ -76,7 +72,7 @@ else:
     st.sidebar.info("📖 Read-Only Mode")
     menu = "📊 Dashboard"
 
-# --- 1. DASHBOARD WITH BACKUP & COSTING ---
+# --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
     query = '''
         SELECT 
@@ -105,22 +101,32 @@ if menu == "📊 Dashboard":
         df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
-        # 🌟 EXCEL BACKUP BUTTON (Duniya ka sab se safe tareeqa)
+        # 🌟 Auto Status Generator Logic
+        today = datetime.now()
+        def get_status(row):
+            try:
+                eta = pd.to_datetime(row['ETA'], errors='coerce')
+                etd = pd.to_datetime(row['ETD'], errors='coerce')
+                if pd.notnull(eta) and eta <= today: return "✅ Arrived"
+                if pd.notnull(etd) and etd <= today: return "🚢 In Transit"
+                return "📄 LC Opened"
+            except: 
+                return "Pending"
+        
+        df['Status'] = df.apply(get_status, axis=1)
+
+        # 🌟 EXCEL COMPATIBLE BACKUP BUTTON (No Module Required)
         st.write("### 📥 System Backup")
-        # Convert dataframe to excel structure bytes
         try:
-            import io
-            towrite = io.BytesIO()
-            df.to_excel(towrite, index=False, header=True)
-            towrite.seek(0)
+            csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="🟢 Download Data as Excel Sheet",
-                data=towrite,
-                file_name=f"Zafar_Logistics_Backup_{datetime.now().strftime('%Y-%m-%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="🟢 Download Data for Excel",
+                data=csv_data,
+                file_name=f"Zafar_Logistics_Backup_{datetime.now().strftime('%Y-%m-%d')}.csv",
+                mime="text/csv"
             )
         except Exception as e:
-            st.caption(f"Backup button configuration load ho rahi hai... ({e})")
+            st.caption(f"Backup configured error: {e}")
             
         st.markdown("---")
         
@@ -135,12 +141,21 @@ if menu == "📊 Dashboard":
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Continuous Indexing S.No 1, 2, 3...
-        df.reset_index(drop=True, inplace=True)
-        df.index = df.index + 1
-        df.index.name = "S.No"
+        # --- RE-SEQUENCING WITH STATUS COLUMN IN PERFECT PLACE ---
+        cols_order = [
+            'Company Name', 'Bank Name', 'File No', 'Item Name', 'Quantity', 'Unit', 
+            'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 
+            'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+        ]
+        display_cols = [c for c in cols_order if c in df.columns]
+        df_display = df[display_cols]
 
-        st.dataframe(df.fillna(""), use_container_width=True, hide_index=False)
+        # Continuous S.No Indexing
+        df_display.reset_index(drop=True, inplace=True)
+        df_display.index = df_display.index + 1
+        df_display.index.name = "S.No"
+
+        st.dataframe(df_display.fillna(""), use_container_width=True, hide_index=False)
     else:
         st.info("System mein koi data majood nahi hai.")
 
@@ -174,7 +189,7 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
             qty = it2.text_input("Qty", key=f"add_qty_{i}")
             unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
             price = it4.text_input("Unit Price", key=f"add_price_{i}")
-            costing = it5.text_input("Actual Costing (Optional)", key=f"add_cost_{i}", placeholder="e.g. Rs 340/kg")
+            costing = it5.text_input("Actual Costing (Optional)", key=f"add_cost_{i}")
             if name:
                 items_inputs.append((name, qty, unit, price, costing))
                 
@@ -199,12 +214,12 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, qty, unit, unit_price, actual_costing) 
                                      VALUES (?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4]))
                     conn.commit()
-                    st.success("✅ Shipment aur items kamyabi se save ho gaye!")
+                    st.success("✅ Record save ho gaya!")
                     st.rerun()
                 except Exception as e:
                     st.error("Error: File No pehle se majood hai.")
 
-# --- 3. UPDATE / EDIT (WITH COSTING INTERFACE) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
     st.subheader("🔄 Update Master, Items & Actual Costing Data")
     df_ship = pd.read_sql('SELECT * FROM shipments', conn)
@@ -224,7 +239,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
             
             st.markdown("---")
-            st.markdown("##### 🛒 Edit Items & Add Actual Costing Here 👇")
+            st.markdown("##### 🛒 Edit Items & Add Actual Costing Here")
             
             updated_items = []
             for idx in range(4):
@@ -237,14 +252,13 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                     ex_qty = df_ex_items.iloc[idx]['qty']
                     ex_unit = df_ex_items.iloc[idx]['unit']
                     ex_price = df_ex_items.iloc[idx]['unit_price']
-                    # Handle if column exists in current memory slice safely
                     ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns and df_ex_items.iloc[idx]['actual_costing'] else ""
                 
                 u_name = it_col1.text_input("Item Name", value=ex_name, key=f"u_name_{idx}")
                 u_qty = it_col2.text_input("Qty", value=ex_qty, key=f"u_qty_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{idx}")
                 u_price = it_col4.text_input("Unit Price", value=ex_price, key=f"u_price_{idx}")
-                u_cost = it_col5.text_input("Actual Costing (PKR)", value=ex_cost, key=f"u_cost_{idx}", placeholder="e.g. 450/kg ya 82000/ton")
+                u_cost = it_col5.text_input("Actual Costing (PKR)", value=ex_cost, key=f"u_cost_{idx}")
                 
                 if u_name:
                     updated_items.append((u_name, u_qty, u_unit, u_price, u_cost))
@@ -268,5 +282,5 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, qty, unit, unit_price, actual_costing) 
                                  VALUES (?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4]))
                 conn.commit()
-                st.success("✅ Actual costing kamyabi se save ho gayi aur update ho gayi!")
+                st.success("✅ Data kamyabi se update ho gaya!")
                 st.rerun()
