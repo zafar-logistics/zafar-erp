@@ -19,14 +19,20 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, brand_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
     
-    # 🌟 DATA LOCK SAFETY: Purane data ko cheray bina safely naye columns add karne ke liye
-    new_cols_items = [('actual_costing', 'TEXT'), ('hs_code', 'TEXT'), ('brand_name', 'TEXT')]
-    for col_name, col_type in new_cols_items:
-        try:
-            c.execute(f'ALTER TABLE shipment_items ADD COLUMN {col_name} {col_type}')
-        except:
-            pass
-            
+    # 🌟 SOLID DATA LOCK: Forcefully ensuring brand_name and hs_code are present in database
+    try:
+        c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
+    except:
+        pass
+    try:
+        c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
+    except:
+        pass
+    try:
+        c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
+    except:
+        pass
+        
     fallback_cols = [
         ('bank_name', 'TEXT'), ('company_name', 'TEXT'), ('currency', 'TEXT'), 
         ('shipment_type', 'TEXT'), ('items', 'TEXT'), ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('unit_price', 'TEXT')
@@ -77,7 +83,7 @@ else:
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # 🌟 BRAN NAME column ko query mein shamil kiya hai
+    # 🌟 Clean database query ensuring brand_name is selected properly
     query = '''
         SELECT 
             s.company_name AS [Company Name], 
@@ -146,7 +152,6 @@ if menu == "📊 Dashboard":
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # --- RE-ORDER WITH BRAND NAME COLUMN ---
         cols_order = [
             'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
             'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 
@@ -258,12 +263,12 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                 
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
-                    ex_name = df_ex_items.iloc[idx]['item_name']
+                    ex_name = df_ex_items.iloc[idx]['item_name'] if df_ex_items.iloc[idx]['item_name'] else ""
                     ex_brand = df_ex_items.iloc[idx]['brand_name'] if 'brand_name' in df_ex_items.columns and df_ex_items.iloc[idx]['brand_name'] else ""
                     ex_hs = df_ex_items.iloc[idx]['hs_code'] if 'hs_code' in df_ex_items.columns and df_ex_items.iloc[idx]['hs_code'] else ""
-                    ex_qty = df_ex_items.iloc[idx]['qty']
-                    ex_unit = df_ex_items.iloc[idx]['unit']
-                    ex_price = df_ex_items.iloc[idx]['unit_price']
+                    ex_qty = df_ex_items.iloc[idx]['qty'] if df_ex_items.iloc[idx]['qty'] else ""
+                    ex_unit = df_ex_items.iloc[idx]['unit'] if df_ex_items.iloc[idx]['unit'] else "KG"
+                    ex_price = df_ex_items.iloc[idx]['unit_price'] if df_ex_items.iloc[idx]['unit_price'] else ""
                     ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns and df_ex_items.iloc[idx]['actual_costing'] else ""
                 
                 u_name = it_col1.text_input("Item Name", value=ex_name, key=f"u_name_{file_to_update}_{idx}")
@@ -296,5 +301,5 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
                                  VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                 conn.commit()
-                st.success("✅ Updated Successfully!")
+                st.success("✅ Updated & Saved Successfully!")
                 st.rerun()
