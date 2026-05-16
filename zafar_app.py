@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 from datetime import datetime
-import json
 
 # --- DATABASE SETUP ---
 db_path = 'zafar_logistics_v3.db'
@@ -17,10 +16,21 @@ def init_db():
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
                   shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # Professional Items Table (Jo multiple items ko alag alag handle karegi)
+    # Professional Items Table
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, total_amount TEXT)''')
+    
+    # Saare zaroori columns check aur add karne ke liye
+    new_cols = [
+        ('bank_name', 'TEXT'), ('company_name', 'TEXT'),
+        ('currency', 'TEXT'), ('shipment_type', 'TEXT')
+    ]
+    for col_name, col_type in new_cols:
+        try:
+            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
+        except:
+            pass
     conn.commit()
 
 init_db()
@@ -78,6 +88,11 @@ if menu == "📊 Dashboard":
         
         df_ship['Status'] = df_ship.apply(get_status, axis=1)
         
+        # Safe string conversion for columns to avoid KeyErrors
+        for col in ['company_name', 'bank_name', 'file_no', 'shipper', 'fc_amount', 'currency', 'bl_no', 'bank_docs', 'remarks']:
+            if col not in df_ship.columns:
+                df_ship[col] = ""
+        
         # Filters
         st.write("### 🔍 Filters")
         f1, f2, f3 = st.columns(3)
@@ -89,10 +104,15 @@ if menu == "📊 Dashboard":
         if sel_bank: df_ship = df_ship[df_ship['bank_name'].isin(sel_bank)]
         if search: df_ship = df_ship[df_ship.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Har shipment ko screen par professional andaz mein dikhana
+        # Har shipment ko screen par safely dikhana
         for index, row in df_ship.iterrows():
+            f_no = row['file_no'] if row['file_no'] else "N/A"
+            c_name = row['company_name'] if row['company_name'] else "No Company Specified"
+            b_name = row['bank_name'] if row['bank_name'] else "No Bank Specified"
+            status_val = row['Status'] if row['Status'] else "Pending"
+            
             with st.container():
-                st.markdown(f"#### 📁 File No: **{row['file_no']}** | {row['company_name']} | {row['bank_name']} | Status: **{row['Status']}**")
+                st.markdown(f"#### 📁 File No: **{f_no}** | {c_name} | {b_name} | Status: **{status_val}**")
                 
                 # Main info cards
                 c_info1, c_info2, c_info3, c_info4 = st.columns(4)
@@ -101,14 +121,13 @@ if menu == "📊 Dashboard":
                 c_info3.write(f"**ETD:** {row['etd']} | **ETA:** {row['eta']}")
                 c_info4.write(f"**BL/LC No:** {row['bl_no']} | **Docs:** {row['bank_docs']}")
                 
-                # Is file ke items alag saaf table mein dikhana
-                df_items = pd.read_sql(f"SELECT item_name, hs_code, qty, unit, unit_price, total_amount FROM shipment_items WHERE file_no='{row['file_no']}'", conn)
+                # Item breakdown table
+                df_items = pd.read_sql(f"SELECT item_name, hs_code, qty, unit, unit_price, total_amount FROM shipment_items WHERE file_no='{f_no}'", conn)
                 if not df_items.empty:
                     df_items.columns = ['Item Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Total Item Value']
                     st.dataframe(df_items, use_container_width=True, hide_index=True)
                 else:
-                    # Agar purana data ho jo naye format mein nahi hai
-                    st.caption("No item breakdown found for this file. Please update using 'Update / Edit' menu.")
+                    st.info("💡 Yeh purani entry hai. Please '🔄 Update / Edit' mein ja kar iske items ki alag se entry save karlein.")
                 
                 if row['remarks']:
                     st.caption(f"**Remarks:** {row['remarks']}")
@@ -116,7 +135,7 @@ if menu == "📊 Dashboard":
     else:
         st.info("System mein koi data nahi hai.")
 
-# --- 2. NAYI ENTRY (With Multiple Item Grid) ---
+# --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
     st.subheader("📝 Nayi Shipment & Items Ki Form Entry")
     
@@ -136,9 +155,8 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         currency = am2.selectbox("Currency", CURRENCIES)
         ship_type = am3.selectbox("Type", ["FCL", "LCL"])
         
-        st.markdown("##### 🛒 Item Breakdown (Safarish: Max 4 Items ek sath enter karein)")
+        st.markdown("##### 🛒 Item Breakdown")
         
-        # Grid for up to 4 items dynamically in the form
         item_data_list = []
         for i in range(1, 5):
             with st.expander(f"Item #{i} ki Tafseelat (Agar hai to bharein)"):
@@ -148,7 +166,6 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
                 i_qty = it3.text_input(f"Quantity #{i}", key=f"qty_{i}")
                 i_unit = it4.selectbox(f"Unit #{i}", UNITS, key=f"unit_{i}")
                 i_price = it5.text_input(f"Unit Price #{i}", key=f"price_{i}")
-                i_total = "" # Auto calc framework handles display
                 if i_name:
                     item_data_list.append((i_name, i_hs, i_qty, i_unit, i_price))
         
@@ -165,25 +182,20 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
                 st.error("File No dena zaroori hai!")
             else:
                 try:
-                    # Master Entry
                     c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                               (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
                     
-                    # Items Entry
                     for item in item_data_list:
-                        # Simple multiplication text generation or estimation if possible
-                        try:
-                            t_calc = str(float(item[2]) * float(item[4].replace('$','').strip()))
-                        except:
-                            t_calc = "-"
+                        try: t_calc = str(float(item[2]) * float(item[4].replace('$','').strip()))
+                        except: t_calc = "-"
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, hs_code, qty, unit, unit_price, total_amount) 
                                      VALUES (?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], t_calc))
                     
                     conn.commit()
-                    st.success(f"✅ File {file_no} aur uske saare items professional treekay se save ho gaye!")
+                    st.success(f"✅ File {file_no} kamyabi se save ho gayi!")
                 except Exception as e:
-                    st.error(f"Error: File No ya data mein masla hai. ({e})")
+                    st.error(f"Error: File No pehle se majood hai ya data ghalat hai.")
 
 # --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
@@ -195,16 +207,14 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
         
         with st.form("update_form"):
             u1, u2 = st.columns(2)
-            u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if row['company_name'] in COMPANIES else 0)
-            u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if row['bank_name'] in BANKS else 0)
+            u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if 'company_name' in row and row['company_name'] in COMPANIES else 0)
+            u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if 'bank_name' in row and row['bank_name'] in BANKS else 0)
             
             u_amount = u1.text_input("Total LC Amount", value=row['fc_amount'] if row['fc_amount'] else "")
             u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
             
             st.markdown("##### 🛠️ Edit / Add Items Breakdown for this File")
-            
-            # Pehle se majood items load karein edit ke liye
             df_existing_items = pd.read_sql(f"SELECT * FROM shipment_items WHERE file_no='{file_to_update}'", conn)
             
             updated_items = []
@@ -212,7 +222,6 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                 st.write(f"**Item Row #{idx+1}**")
                 it_col1, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 2, 3])
                 
-                # Check if item data exists for this index
                 ex_name, ex_hs, ex_qty, ex_unit, ex_price = "", "", "", "KG", ""
                 if idx < len(df_existing_items):
                     ex_name = df_existing_items.iloc[idx]['item_name']
@@ -238,14 +247,12 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_remarks = st.text_area("Remarks", value=row['remarks'])
             
             if st.form_submit_button("Update Master & Items Data"):
-                # 1. Update Master Shipment
                 c.execute('''UPDATE shipments SET 
                              company_name=?, bank_name=?, fc_amount=?, currency=?, 
                              shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? 
                              WHERE file_no=?''', 
                           (u_comp, u_bank, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
                 
-                # 2. Refresh Items for this file (Purane saaf karke naye table data save)
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
                     try: t_calc = str(float(item[2]) * float(item[4].replace('$','').strip()))
@@ -254,5 +261,5 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                                  VALUES (?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], t_calc))
                 
                 conn.commit()
-                st.success("✅ Master Data aur Items Grid kamyabi se professional design mein update ho gaye!")
+                st.success("✅ Data kamyabi se update ho gaya!")
                 st.rerun()
