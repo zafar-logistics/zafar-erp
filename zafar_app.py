@@ -17,10 +17,10 @@ def init_db():
     
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  file_no TEXT, item_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
+                  file_no TEXT, item_name TEXT, brand_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
     
-    # Safely adding new columns if they don't exist
-    new_cols_items = [('actual_costing', 'TEXT'), ('hs_code', 'TEXT')]
+    # 🌟 DATA LOCK SAFETY: Purane data ko cheray bina safely naye columns add karne ke liye
+    new_cols_items = [('actual_costing', 'TEXT'), ('hs_code', 'TEXT'), ('brand_name', 'TEXT')]
     for col_name, col_type in new_cols_items:
         try:
             c.execute(f'ALTER TABLE shipment_items ADD COLUMN {col_name} {col_type}')
@@ -77,6 +77,7 @@ else:
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
+    # 🌟 BRAN NAME column ko query mein shamil kiya hai
     query = '''
         SELECT 
             s.company_name AS [Company Name], 
@@ -85,6 +86,7 @@ if menu == "📊 Dashboard":
             IFNULL(s.indenter, "-") AS [Indenter],
             IFNULL(s.shipper, "-") AS [Supplier Name],
             CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "") END AS [Item Name],
+            IFNULL(i.brand_name, "-") AS [Brand Name],
             IFNULL(i.hs_code, "-") AS [HS Code],
             CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "") END AS [Quantity],
             CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "") END AS [Unit],
@@ -130,7 +132,7 @@ if menu == "📊 Dashboard":
                 mime="text/csv"
             )
         except Exception as e:
-            st.caption(f"Backup button configuration load ho rahi hai... ({e})")
+            st.caption(f"Backup configured: {e}")
             
         st.markdown("---")
         
@@ -138,15 +140,16 @@ if menu == "📊 Dashboard":
         f1, f2, f3 = st.columns(3)
         sel_comp = f1.multiselect("Company:", COMPANIES)
         sel_bank = f2.multiselect("Bank:", BANKS)
-        search = f3.text_input("Search (File, Item, Supplier, HS Code):")
+        search = st.text_input("Search (File, Item, Supplier, Brand):")
 
         if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
+        # --- RE-ORDER WITH BRAND NAME COLUMN ---
         cols_order = [
             'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-            'Item Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 
+            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 
             'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
         ]
         display_cols = [c for c in cols_order if c in df.columns]
@@ -158,7 +161,7 @@ if menu == "📊 Dashboard":
 
         st.dataframe(df_display.fillna(""), use_container_width=True, hide_index=False)
     else:
-        st.info("System mein koi data majood nahi hai.")
+        st.info("Data nahi hai.")
 
 # --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
@@ -185,15 +188,16 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
         items_inputs = []
         for i in range(1, 5):
             st.write(f"**Item #{i}:**")
-            it1, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 1, 1, 2, 3])
+            it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
             name = it1.text_input("Item Name", key=f"add_name_{i}")
+            brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
             hs_code = it_hs.text_input("HS Code", key=f"add_hs_{i}")
             qty = it2.text_input("Qty", key=f"add_qty_{i}")
             unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
             price = it4.text_input("Unit Price", key=f"add_price_{i}")
-            costing = it5.text_input("Actual Costing (Optional)", key=f"add_cost_{i}")
+            costing = it5.text_input("Actual Costing", key=f"add_cost_{i}")
             if name:
-                items_inputs.append((name, hs_code, qty, unit, price, costing))
+                items_inputs.append((name, brand, hs_code, qty, unit, price, costing))
                 
         st.markdown("---")
         d1, d2, d3, d4 = st.columns(4)
@@ -213,27 +217,25 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["admin_mode"]:
                               (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
                     
                     for item in items_inputs:
-                        c.execute('''INSERT INTO shipment_items (file_no, item_name, hs_code, qty, unit, unit_price, actual_costing) 
-                                     VALUES (?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], item[5]))
+                        c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
+                                     VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                     conn.commit()
-                    st.success("✅ Record save ho gaya!")
+                    st.success("✅ Save ho gaya!")
                     st.rerun()
                 except Exception as e:
                     st.error("Error: File No pehle se majood hai.")
 
-# --- 3. UPDATE / EDIT (WITH AUTO-REFRESH FIX) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
     st.subheader("🔄 Update Master, Items & Actual Costing Data")
     df_ship = pd.read_sql('SELECT * FROM shipments', conn)
     
     if not df_ship.empty:
-        # File select karne wala box form ke bahar rakha hai taake state refresh ho sake
         file_to_update = st.selectbox("Select File No to Update Costing:", df_ship['file_no'].tolist())
         row = df_ship[df_ship['file_no'] == file_to_update].iloc[0]
         
         df_ex_items = pd.read_sql(f"SELECT * FROM shipment_items WHERE file_no='{file_to_update}'", conn)
         
-        # 🌟 ZAFAR BHAI KEY FIX: File No badalte hi form ke keys refresh ho jayenge, purana data gayab!
         with st.form(key=f"form_{file_to_update}"):
             u1, u2 = st.columns(2)
             u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if 'company_name' in row and row['company_name'] in COMPANIES else 0)
@@ -247,16 +249,17 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
             
             st.markdown("---")
-            st.markdown("##### 🛒 Edit Items & Add Actual Costing Here")
+            st.markdown("##### 🛒 Edit Items, Brand & Add Actual Costing Here")
             
             updated_items = []
             for idx in range(4):
                 st.write(f"**Item Row #{idx+1}:**")
-                it_col1, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 1, 1, 2, 3])
+                it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
                 
-                ex_name, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "KG", "", ""
+                ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
                     ex_name = df_ex_items.iloc[idx]['item_name']
+                    ex_brand = df_ex_items.iloc[idx]['brand_name'] if 'brand_name' in df_ex_items.columns and df_ex_items.iloc[idx]['brand_name'] else ""
                     ex_hs = df_ex_items.iloc[idx]['hs_code'] if 'hs_code' in df_ex_items.columns and df_ex_items.iloc[idx]['hs_code'] else ""
                     ex_qty = df_ex_items.iloc[idx]['qty']
                     ex_unit = df_ex_items.iloc[idx]['unit']
@@ -264,14 +267,15 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                     ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns and df_ex_items.iloc[idx]['actual_costing'] else ""
                 
                 u_name = it_col1.text_input("Item Name", value=ex_name, key=f"u_name_{file_to_update}_{idx}")
+                u_brand = it_col_b.text_input("Brand", value=ex_brand, key=f"u_brand_{file_to_update}_{idx}")
                 u_hs = it_col_hs.text_input("HS Code", value=ex_hs, key=f"u_hs_{file_to_update}_{idx}")
                 u_qty = it_col2.text_input("Qty", value=ex_qty, key=f"u_qty_{file_to_update}_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
-                u_price = it_col4.text_input("Unit Price", value=ex_price, key=f"u_price_{file_to_update}_{idx}")
-                u_cost = it_col5.text_input("Actual Costing (PKR)", value=ex_cost, key=f"u_cost_{file_to_update}_{idx}")
+                u_price = it_col4.text_input("Price", value=ex_price, key=f"u_price_{file_to_update}_{idx}")
+                u_cost = it_col5.text_input("Actual Costing", value=ex_cost, key=f"u_cost_{file_to_update}_{idx}")
                 
                 if u_name:
-                    updated_items.append((u_name, u_hs, u_qty, u_unit, u_price, u_cost))
+                    updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
                     
             st.markdown("---")
             u_etd = u1.text_input("ETD", value=row['etd'] if row['etd'] else "")
@@ -289,8 +293,8 @@ elif menu == "🔄 Update / Edit" and st.session_state["admin_mode"]:
                 
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
-                    c.execute('''INSERT INTO shipment_items (file_no, item_name, hs_code, qty, unit, unit_price, actual_costing) 
-                                 VALUES (?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5]))
+                    c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
+                                 VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                 conn.commit()
-                st.success("✅ Data kamyabi se update ho gaya!")
+                st.success("✅ Updated Successfully!")
                 st.rerun()
