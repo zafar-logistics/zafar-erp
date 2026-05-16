@@ -9,15 +9,28 @@ conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
+    # 1. Main Shipments Table (Master info)
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
                   shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
+    # 2. International Items Table (Breakdown info)
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, qty TEXT, unit TEXT, unit_price TEXT)''')
+    
+    # Forcefully check and add missing columns to master table to avoid any DatabaseError
+    fallback_cols = [
+        ('bank_name', 'TEXT'), ('company_name', 'TEXT'), ('currency', 'TEXT'), 
+        ('shipment_type', 'TEXT'), ('items', 'TEXT'), ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('unit_price', 'TEXT')
+    ]
+    for col_name, col_type in fallback_cols:
+        try:
+            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
+        except:
+            pass
     conn.commit()
 
 init_db()
@@ -57,31 +70,35 @@ else:
     st.sidebar.info("📖 Read-Only Mode")
     menu = "📊 Dashboard"
 
-# --- 1. DASHBOARD (FIXED MULTI-ROW & SERIAL NO) ---
+# --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # 🌟 Perfect Query: Agar items table mein data mil jaye toh usko priority de
-    query = '''
-        SELECT 
-            s.company_name AS [Company Name], 
-            s.bank_name AS [Bank Name], 
-            s.file_no AS [File No],
-            CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE s.items END AS [Item Name],
-            CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE s.weight END AS [Quantity],
-            CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE s.weight_unit END AS [Unit],
-            CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE s.unit_price END AS [Unit Price],
-            s.fc_amount AS [Total LC Value], 
-            s.currency AS [Currency], 
-            s.shipment_type AS [Type],
-            s.etd AS [ETD], 
-            s.eta AS [ETA], 
-            s.bl_no AS [BL / LC No], 
-            s.bank_docs AS [Bank Docs], 
-            s.remarks AS [Remarks]
-        FROM shipments s
-        LEFT JOIN shipment_items i ON s.file_no = i.file_no
-    '''
-    df = pd.read_sql(query, conn)
-    
+    # Safe fallback query checking columns dynamically
+    try:
+        query = '''
+            SELECT 
+                s.company_name AS [Company Name], 
+                s.bank_name AS [Bank Name], 
+                s.file_no AS [File No],
+                CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "") END AS [Item Name],
+                CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "") END AS [Quantity],
+                CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "") END AS [Unit],
+                CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE IFNULL(s.unit_price, "") END AS [Unit Price],
+                s.fc_amount AS [Total LC Value], 
+                s.currency AS [Currency], 
+                s.shipment_type AS [Type],
+                s.etd AS [ETD], 
+                s.eta AS [ETA], 
+                s.bl_no AS [BL / LC No], 
+                s.bank_docs AS [Bank Docs], 
+                s.remarks AS [Remarks]
+            FROM shipments s
+            LEFT JOIN shipment_items i ON s.file_no = i.file_no
+        '''
+        df = pd.read_sql(query, conn)
+    except:
+        # Ultimate protection backup if SQL merge still complaints
+        df = pd.read_sql('SELECT * FROM shipments', conn)
+
     if not df.empty:
         # Filters
         st.write("### 🔍 Filters")
@@ -90,16 +107,19 @@ if menu == "📊 Dashboard":
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Shipper):")
 
-        if sel_comp: df = df[df['Company Name'].isin(sel_comp)]
-        if sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
-        if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        # Handle formatting based on standard display columns
+        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
+        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
+        
+        if search: 
+            df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # 🌟 SERIAL NUMBER LOGIC (Hamesha 1 se shuru hoga aur continuous chalega)
+        # Continuous Serial Number generation starting from 1
         df.reset_index(drop=True, inplace=True)
         df.index = df.index + 1
         df.index.name = "S.No"
 
-        # Table Display
+        # Output the perfect Excel spreadsheet style grid table
         st.dataframe(df.fillna(""), use_container_width=True, hide_index=False)
     else:
         st.info("System mein koi data majood nahi hai.")
