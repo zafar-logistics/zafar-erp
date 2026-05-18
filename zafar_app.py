@@ -67,7 +67,7 @@ if not st.session_state["logged_in"]:
                 if result:
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = user_input
-                    st.session_state["user_role"] = block_role = result[0]
+                    st.session_state["user_role"] = result[0]
                     st.success("Logging in...")
                     st.rerun()
                 else:
@@ -101,7 +101,6 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # Robust dynamic extraction ensuring data mapped from shipments or item splits
     query = '''
         SELECT 
             IFNULL(s.company_name, "-") AS [Company Name], 
@@ -127,10 +126,10 @@ if menu == "📊 Dashboard":
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    df = pd.read_sql(query, conn)
+    try: df = pd.read_sql(query, conn)
+    except: df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
-        # Dynamic Auto Status Engine
         today = datetime.now()
         def get_status(row):
             try:
@@ -159,17 +158,9 @@ if menu == "📊 Dashboard":
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Explicit alignment for table structure rendering
-        cols_order = [
-            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
-            'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
-            'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
-        ]
-        
+        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
-        
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
@@ -271,4 +262,81 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 u_hs = it_col_hs.text_input("HS Code", value=ex_hs, key=f"u_hs_{file_to_update}_{idx}")
                 u_qty = it_col2.text_input("Qty", value=ex_qty, key=f"u_qty_{file_to_update}_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
-                u_price = it_col4.text_input("Price", value=ex
+                u_price = it_col4.text_input("Price", value=ex_price, key=f"u_price_{file_to_update}_{idx}")
+                u_cost = it_col5.text_input("Actual Costing", value=ex_cost, key=f"u_cost_{file_to_update}_{idx}")
+                if u_name: updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
+                    
+            st.markdown("---")
+            u_etd = u1.text_input("ETD", value=row['etd'] if row['etd'] else "")
+            u_eta = u2.text_input("ETA", value=row['eta'] if row['eta'] else "")
+            u_bl = u1.text_input("BL/LC No", value=row['bl_no'] if row['bl_no'] else "")
+            u_docs = u2.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
+            u_remarks = st.text_area("Remarks", value=row['remarks'])
+            
+            if st.form_submit_button("Update Master & Items"):
+                c.execute('''UPDATE shipments SET company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?''', (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
+                c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
+                for item in updated_items:
+                    c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
+                conn.commit()
+                st.success("✅ Updated!")
+                st.rerun()
+
+# --- 4. 👥 MANAGE ACCOUNTS ---
+elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
+    st.subheader("👥 Accounts Control Center & Rights Settings")
+    
+    m_col1, m_col2 = st.columns(2)
+    
+    with m_col1:
+        st.write("##### 👤 Naya Account Banayein")
+        selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES, key="new_role_sel")
+        
+        with st.form("create_user_form"):
+            new_user = st.text_input("Username:")
+            new_pass = st.text_input("Password:", type="password")
+            if st.form_submit_button("Create Account"):
+                if new_user and new_pass:
+                    try:
+                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user.strip(), new_pass, selected_role))
+                        conn.commit()
+                        st.success(f"✅ User '{new_user}' created!")
+                        st.rerun()
+                    except: st.error("Error: Username pehle se dakhil hai.")
+                else: st.error("Fields bhanna zaroori hain.")
+
+    with m_col2:
+        st.write("##### 🔄 Password Badlein ya Account Delete Karein")
+        df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
+        
+        if not df_users_list.empty:
+            target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
+            
+            with st.form("update_password_form"):
+                new_password_val = st.text_input("Naya Password Likhein:", type="password")
+                if st.form_submit_button("🔒 Password Change Karein"):
+                    if new_password_val:
+                        c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
+                        conn.commit()
+                        st.success(f"✅ '{target_user}' ka password change ho gaya!")
+                    else: st.error("Naya password likhna zaroori hai.")
+            
+            st.write("---")
+            st.warning(f"⚠️ Kya aap '{target_user}' ka account permanent khatam karna chahte hain?")
+            if st.button("❌ Haan, Account Delete Kardo"):
+                c.execute("DELETE FROM users WHERE username=?", (target_user,))
+                conn.commit()
+                st.success(f"🗑️ User '{target_user}' successfully deleted!")
+                st.rerun()
+        else:
+            st.info("Zafar bhai ke ilawa koi aur extra sub-account nahi bana hua.")
+
+    st.markdown("---")
+    st.write("##### 📊 User Accounts & Assigned Rights List")
+    df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
+    def map_rights(role):
+        if role == "Admin": return "Full System Control + Account Management"
+        if role == "Manager": return "Can Add & Edit Logistics Data (No User Control)"
+        return "Read-Only Dashboard Access (Viewer)"
+    df_users['Assigned Operations'] = df_users['Role Description'].apply(map_rights)
+    st.dataframe(df_users, use_container_width=True, hide_index=True)
