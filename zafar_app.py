@@ -282,11 +282,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Updated!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS (WITH PASSWORD CHANGE & DELETE FEATURES) ---
+# --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 Accounts Control Center & Rights Settings")
     
-    # Grid system to divide management layout
     m_col1, m_col2 = st.columns(2)
     
     with m_col1:
@@ -313,7 +312,6 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
         if not df_users_list.empty:
             target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
             
-            # Form for Password Update
             with st.form("update_password_form"):
                 new_password_val = st.text_input("Naya Password Likhein:", type="password")
                 if st.form_submit_button("🔒 Password Change Karein"):
@@ -323,10 +321,22 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         st.success(f"✅ '{target_user}' ka password change ho gaya!")
                     else: st.error("Naya password likhna zaroori hai.")
             
-            # Action button for Delete Account
             st.write("---")
             st.warning(f"⚠️ Kya aap '{target_user}' ka account permanent khatam karna chahte hain?")
             if st.button("❌ Haan, Account Delete Kardo"):
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
                 conn.commit()
-                st.success(f"🗑
+                st.success(f"🗑️ User '{target_user}' successfully deleted!")
+                st.rerun()
+        else:
+            st.info("Zafar bhai ke ilawa koi aur extra sub-account nahi bana hua.")
+
+    st.markdown("---")
+    st.write("##### 📊 User Accounts & Assigned Rights List")
+    df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
+    def map_rights(role):
+        if role == "Admin": return "Full System Control + Account Management"
+        if role == "Manager": return "Can Add & Edit Logistics Data (No User Control)"
+        return "Read-Only Dashboard Access (Viewer)"
+    df_users['Assigned Operations'] = df_users['Role Description'].apply(map_rights)
+    st.dataframe(df_users, use_container_width=True, hide_index=True)
