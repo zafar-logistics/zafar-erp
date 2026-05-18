@@ -29,7 +29,6 @@ def init_db():
     except:
         pass
 
-    # Back-end fields auto-injection inside SQLite structure safely
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
     except: pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
@@ -102,7 +101,6 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # 🌟 Safest extraction matching dynamically schema elements step by step
     try:
         query = '''
             SELECT 
@@ -131,10 +129,8 @@ if menu == "📊 Dashboard":
         '''
         df = pd.read_sql(query, conn)
     except:
-        # Ultimate fallback structural extraction to protect grid view execution
         df = pd.read_sql('SELECT * FROM shipments', conn)
 
-    # Normalize columns manually if query fell back to base shipments
     if not df.empty and 'Company Name' not in df.columns:
         cols_map = {
             'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No',
@@ -146,7 +142,6 @@ if menu == "📊 Dashboard":
         }
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
 
-    # Inject empty columns dynamically if still missing from direct schema fallback
     expected_cols = [
         'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
         'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
@@ -157,7 +152,6 @@ if menu == "📊 Dashboard":
             df[column_check] = "-"
 
     if not df.empty:
-        # Auto Status Generator Engine
         today = datetime.now()
         def get_status(row):
             try:
@@ -182,11 +176,13 @@ if menu == "📊 Dashboard":
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
-        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
+        comp_col = 'Company Name' if 'Company Name' in df.columns else ('company_name' if 'company_name' in df.columns else '')
+        bank_col = 'Bank Name' if 'Bank Name' in df.columns else ('bank_name' if 'bank_name' in df.columns else '')
+
+        if comp_col and sel_comp: df = df[df[comp_col].isin(sel_comp)]
+        if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Ordered grid definition
         cols_order = [
             'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
             'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
@@ -196,7 +192,6 @@ if menu == "📊 Dashboard":
         
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
-        
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
@@ -259,63 +254,97 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
                     st.rerun()
                 except: st.error("Error: Save nahi ho saka.")
 
-# --- 3. UPDATE / EDIT ---
+# --- 3. UPDATE / EDIT (🔑 KEYERROR & SUBMIT BUTTON FIX) ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("🔄 Update Master, Items & Actual Costing Data")
-    df_ship = pd.read_sql('SELECT * FROM shipments', conn)
-    if not df_ship.empty:
-        file_to_update = st.selectbox("Select File No to Update:", df_ship['file_no'].tolist())
-        row = df_ship[df_ship['file_no'] == file_to_update].iloc[0]
+    
+    # Raw dataframe load karke columns lowercase protection lagai hai
+    df_raw = pd.read_sql('SELECT * FROM shipments', conn)
+    
+    if not df_raw.empty:
+        # File selector dropdown
+        file_to_update = st.selectbox("Select File No to Update:", df_raw['file_no'].tolist())
+        row = df_raw[df_raw['file_no'] == file_to_update].iloc[0]
+        
+        # Current file_no ke selected item splits load karein
         df_ex_items = pd.read_sql(f"SELECT * FROM shipment_items WHERE file_no='{file_to_update}'", conn)
         
-        with st.form(key=f"form_{file_to_update}"):
+        # Form structure wrapped inside explicit key matching state refresh
+        with st.form(key=f"form_update_{file_to_update}"):
             u1, u2 = st.columns(2)
-            u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(row['company_name']) if 'company_name' in row and row['company_name'] in COMPANIES else 0)
-            u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(row['bank_name']) if 'bank_name' in row and row['bank_name'] in BANKS else 0)
-            u_indenter = u1.text_input("Indenter", value=row['indenter'] if row['indenter'] else "")
-            u_shipper = u2.text_input("Shipper", value=row['shipper'] if row['shipper'] else "")
-            u_amount = u1.text_input("Total LC Amount", value=row['fc_amount'] if row['fc_amount'] else "")
-            u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(row['currency']) if row['currency'] in CURRENCIES else 0)
-            u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if row['shipment_type'] == "FCL" else 1)
+            
+            # Safe mapping functions using case-insensitive check to avoid KeyError
+            def get_val(row_obj, keys_list, default=""):
+                for k in keys_list:
+                    if k in row_obj: return row_obj[k]
+                return default
+
+            comp_val = get_val(row, ['company_name', 'COMPANY_NAME'])
+            bank_val = get_val(row, ['bank_name', 'BANK_NAME'])
+            ind_val = get_val(row, ['indenter', 'INDENTER'])
+            ship_val = get_val(row, ['shipper', 'SHIPPER'])
+            amt_val = get_val(row, ['fc_amount', 'FC_AMOUNT'])
+            curr_val = get_val(row, ['currency', 'CURRENCY'])
+            type_val = get_val(row, ['shipment_type', 'SHIPMENT_TYPE'])
+            etd_val = get_val(row, ['etd', 'ETD'])
+            eta_val = get_val(row, ['eta', 'ETA'])
+            bl_val = get_val(row, ['bl_no', 'BL_NO'])
+            docs_val = get_val(row, ['bank_docs', 'BANK_DOCS'])
+            rem_val = get_val(row, ['remarks', 'REMARKS'])
+
+            u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(comp_val) if comp_val in COMPANIES else 0)
+            u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(bank_val) if bank_val in BANKS else 0)
+            u_indenter = u1.text_input("Indenter", value=str(ind_val))
+            u_shipper = u2.text_input("Shipper", value=str(ship_val))
+            u_amount = u1.text_input("Total LC Amount", value=str(amt_val))
+            u_curr = u2.selectbox("Currency", CURRENCIES, index=CURRENCIES.index(curr_val) if curr_val in CURRENCIES else 0)
+            u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if type_val == "FCL" else 1)
             
             st.markdown("---")
+            st.markdown("##### 🛒 Edit Items, Brand & Add Actual Costing Here")
+            
             updated_items = []
             for idx in range(4):
                 st.write(f"**Item Row #{idx+1}:**")
                 it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
+                
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
-                    ex_name = df_ex_items.iloc[idx]['item_name'] if df_ex_items.iloc[idx]['item_name'] else ""
-                    ex_brand = df_ex_items.iloc[idx]['brand_name'] if 'brand_name' in df_ex_items.columns and df_ex_items.iloc[idx]['brand_name'] else ""
-                    ex_hs = df_ex_items.iloc[idx]['hs_code'] if 'hs_code' in df_ex_items.columns and df_ex_items.iloc[idx]['hs_code'] else ""
-                    ex_qty = df_ex_items.iloc[idx]['qty'] if df_ex_items.iloc[idx]['qty'] else ""
-                    ex_unit = df_ex_items.iloc[idx]['unit'] if df_ex_items.iloc[idx]['unit'] else "KG"
-                    ex_price = df_ex_items.iloc[idx]['unit_price'] if df_ex_items.iloc[idx]['unit_price'] else ""
-                    ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns and df_ex_items.iloc[idx]['actual_costing'] else ""
+                    item_row = df_ex_items.iloc[idx]
+                    ex_name = get_val(item_row, ['item_name', 'ITEM_NAME'])
+                    ex_brand = get_val(item_row, ['brand_name', 'BRAND_NAME'])
+                    ex_hs = get_val(item_row, ['hs_code', 'HS_CODE'])
+                    ex_qty = get_val(item_row, ['qty', 'QTY'])
+                    ex_unit = get_val(item_row, ['unit', 'UNIT'], "KG")
+                    ex_price = get_val(item_row, ['unit_price', 'UNIT_PRICE'])
+                    ex_cost = get_val(item_row, ['actual_costing', 'ACTUAL_COSTING'])
                 
-                u_name = it_col1.text_input("Item Name", value=ex_name, key=f"u_name_{file_to_update}_{idx}")
-                u_brand = it_col_b.text_input("Brand", value=ex_brand, key=f"u_brand_{file_to_update}_{idx}")
-                u_hs = it_col_hs.text_input("HS Code", value=ex_hs, key=f"u_hs_{file_to_update}_{idx}")
-                u_qty = it_col2.text_input("Qty", value=ex_qty, key=f"u_qty_{file_to_update}_{idx}")
+                u_name = it_col1.text_input("Item Name", value=str(ex_name), key=f"u_name_{file_to_update}_{idx}")
+                u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
+                u_hs = it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_{file_to_update}_{idx}")
+                u_qty = it_col2.text_input("Qty", value=str(ex_qty), key=f"u_qty_{file_to_update}_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
-                u_price = it_col4.text_input("Price", value=ex_price, key=f"u_price_{file_to_update}_{idx}")
-                u_cost = it_col5.text_input("Actual Costing", value=ex_cost, key=f"u_cost_{file_to_update}_{idx}")
-                if u_name: updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
+                u_price = it_col4.text_input("Price", value=str(ex_price), key=f"u_price_{file_to_update}_{idx}")
+                u_cost = it_col5.text_input("Actual Costing", value=str(ex_cost), key=f"u_cost_{file_to_update}_{idx}")
+                
+                if u_name and u_name.strip() != "": 
+                    updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
                     
             st.markdown("---")
-            u_etd = u1.text_input("ETD", value=row['etd'] if row['etd'] else "")
-            u_eta = u2.text_input("ETA", value=row['eta'] if row['eta'] else "")
-            u_bl = u1.text_input("BL/LC No", value=row['bl_no'] if row['bl_no'] else "")
-            u_docs = u2.selectbox("Bank Docs", ["Pending", "OK"], index=0 if row['bank_docs'] == "Pending" else 1)
-            u_remarks = st.text_area("Remarks", value=row['remarks'])
+            u_etd = u1.text_input("ETD", value=str(etd_val))
+            u_eta = u2.text_input("ETA", value=str(eta_val))
+            u_bl = u1.text_input("BL/LC No", value=str(bl_val))
+            u_docs = u2.selectbox("Bank Docs", ["Pending", "OK"], index=0 if docs_val == "Pending" else 1)
+            u_remarks = st.text_area("Remarks", value=str(rem_val))
             
-            if st.form_submit_button("Update Master & Items"):
+            # Explicit form submit button declaration to clean the "Missing Submit Button" notice
+            if st.form_submit_button("💾 Update Master & Items"):
                 c.execute('''UPDATE shipments SET company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?''', (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                 conn.commit()
-                st.success("✅ Updated!")
+                st.success("✅ Records successfully updated!")
                 st.rerun()
 
 # --- 4. 👥 MANAGE ACCOUNTS ---
