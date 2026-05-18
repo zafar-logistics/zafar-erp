@@ -101,39 +101,62 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
+    # 🌟 Safest query mapping both tables with hardcoded display labels
     query = '''
         SELECT 
-            IFNULL(s.company_name, "-") AS [Company Name], 
-            IFNULL(s.bank_name, "-") AS [Bank Name], 
-            IFNULL(s.file_no, "-") AS [File No],
-            IFNULL(s.indenter, "-") AS [Indenter], 
-            IFNULL(s.shipper, "-") AS [Supplier Name],
-            CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "-") END AS [Item Name],
-            IFNULL(i.brand_name, "-") AS [Brand Name], 
-            IFNULL(i.hs_code, "-") AS [HS Code],
-            CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "-") END AS [Quantity],
-            CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "-") END AS [Unit],
-            CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE IFNULL(s.unit_price, "-") END AS [Unit Price],
-            IFNULL(i.actual_costing, "-") AS [Actual Costing (PKR)],
-            IFNULL(s.fc_amount, "-") AS [Total LC Value], 
-            IFNULL(s.currency, "-") AS [Currency], 
-            IFNULL(s.shipment_type, "-") AS [Type],
-            IFNULL(s.etd, "") AS [ETD], 
-            IFNULL(s.eta, "") AS [ETA], 
-            IFNULL(s.bl_no, "-") AS [BL / LC No], 
-            IFNULL(s.bank_docs, "-") AS [Bank Docs], 
-            IFNULL(s.remarks, "") AS [Remarks]
+            s.company_name AS [Company Name], 
+            s.bank_name AS [Bank Name], 
+            s.file_no AS [File No],
+            s.indenter AS [Indenter], 
+            s.shipper AS [Supplier Name],
+            i.item_name AS [Item Name],
+            i.brand_name AS [Brand Name], 
+            i.hs_code AS [HS Code],
+            i.qty AS [Quantity],
+            i.unit AS [Unit], 
+            i.unit_price AS [Unit Price],
+            i.actual_costing AS [Actual Costing (PKR)],
+            s.fc_amount AS [Total LC Value], 
+            s.currency AS [Currency], 
+            s.shipment_type AS [Type],
+            s.etd AS [ETD], 
+            s.eta AS [ETA], 
+            s.bl_no AS [BL / LC No], 
+            s.bank_docs AS [Bank Docs], 
+            s.remarks AS [Remarks]
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    try: df = pd.read_sql(query, conn)
-    except: df = pd.read_sql('SELECT * FROM shipments', conn)
+    df = pd.read_sql(query, conn)
+
+    # 🌟 ULTIMATE FALLBACK CONTROL: Agar kisi wajah se merge query crash ho, toh backup display on karein
+    if df.empty or len(df.columns) < 5:
+        df = pd.read_sql('SELECT * FROM shipments', conn)
+        # Fallback names fixing mapping row structures
+        if 'company_name' in df.columns: df.rename(columns={'company_name': 'Company Name'}, inplace=True)
+        if 'bank_name' in df.columns: df.rename(columns={'bank_name': 'Bank Name'}, inplace=True)
+        if 'file_no' in df.columns: df.rename(columns={'file_no': 'File No'}, inplace=True)
+        if 'indenter' in df.columns: df.rename(columns={'indenter': 'Indenter'}, inplace=True)
+        if 'shipper' in df.columns: df.rename(columns={'shipper': 'Supplier Name'}, inplace=True)
+        if 'items' in df.columns: df.rename(columns={'items': 'Item Name'}, inplace=True)
+        if 'weight' in df.columns: df.rename(columns={'weight': 'Quantity'}, inplace=True)
+        if 'weight_unit' in df.columns: df.rename(columns={'weight_unit': 'Unit'}, inplace=True)
+        if 'unit_price' in df.columns: df.rename(columns={'unit_price': 'Unit Price'}, inplace=True)
+        if 'fc_amount' in df.columns: df.rename(columns={'fc_amount': 'Total LC Value'}, inplace=True)
+        if 'currency' in df.columns: df.rename(columns={'currency': 'Currency'}, inplace=True)
+        if 'shipment_type' in df.columns: df.rename(columns={'shipment_type': 'Type'}, inplace=True)
+        if 'etd' in df.columns: df.rename(columns={'etd': 'ETD'}, inplace=True)
+        if 'eta' in df.columns: df.rename(columns={'eta': 'ETA'}, inplace=True)
+        if 'bl_no' in df.columns: df.rename(columns={'bl_no': 'BL / LC No'}, inplace=True)
+        if 'bank_docs' in df.columns: df.rename(columns={'bank_docs': 'Bank Docs'}, inplace=True)
+        if 'remarks' in df.columns: df.rename(columns={'remarks': 'Remarks'}, inplace=True)
 
     if not df.empty:
+        # Auto Status Engine
         today = datetime.now()
         def get_status(row):
             try:
-                if 'ETA' not in row or not row['ETA'] or row['ETA'] == "": return "📄 LC Opened"
+                if 'ETA' not in row or not row['ETA'] or row['ETA'] == "" or row['ETA'] == "-": return "📄 LC Opened"
                 eta = pd.to_datetime(row['ETA'], errors='coerce')
                 etd = pd.to_datetime(row['ETD'], errors='coerce')
                 if pd.notnull(eta) and eta <= today: return "✅ Arrived"
@@ -154,13 +177,25 @@ if menu == "📊 Dashboard":
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
-        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
+        # Column names normalize protection
+        comp_col = 'Company Name' if 'Company Name' in df.columns else ('company_name' if 'company_name' in df.columns else '')
+        bank_col = 'Bank Name' if 'Bank Name' in df.columns else ('bank_name' if 'bank_name' in df.columns else '')
+
+        if comp_col and sel_comp: df = df[df[comp_col].isin(sel_comp)]
+        if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
+        # Forced column structure execution mapping
+        cols_order = [
+            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
+            'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
+            'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+        ]
+        
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
+        
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
