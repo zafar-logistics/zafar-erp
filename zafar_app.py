@@ -145,7 +145,7 @@ available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / E
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-# --- 📈 6. SIDEBAR GRAPH HISTORY FEATURE ---
+# --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
 st.sidebar.markdown("---")
 st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
 all_items_saved = get_distinct_values("item_name", "shipment_items")
@@ -181,9 +181,9 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- Helper to parse date strings safely to datetime objects ---
 def parse_date(date_str):
-    if not date_str or date_str in ["", "-", "Pending", None]: return None
-    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
-        try: return datetime.strptime(date_str.strip(), fmt)
+    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan"]: return None
+    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S'):
+        try: return datetime.strptime(str(date_str).strip(), fmt)
         except: pass
     return None
 
@@ -219,46 +219,39 @@ if menu == "📊 Dashboard":
         if col not in df.columns: df[col] = "-"
 
     if not df.empty:
-        # 🌟 1. ADVANCED DYNAMIC STATUS ENGINE LOGIC
+        # 🌟 FIXED 100% SECURE DYNAMIC STATUS ENGINE LOGIC (Handles NoneType safely)
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Lists to store alerts messages for requirement #2
         today_etd_alerts = []
         arrived_eta_alerts = []
 
         def calculated_status(row):
             f_no = str(row['File No']).strip()
-            # a) File Empty -> Query
-            if f_no == "" or f_no == "-" or pd.isna(row['File No']): return "Query"
+            if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
             
             etd_dt = parse_date(row['ETD'])
             eta_dt = parse_date(row['ETA'])
             
-            # 🔔 2. Live Notifications Logic Collector
-            if etd_dt and etd_dt.date() == today.date():
+            # Safe Alert collection using direct attributes instead of mixing datetime types
+            if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
                 today_etd_alerts.append(f"File No: {f_no} ({row['Item Name']}) AAJ CHALEGA!")
-            if eta_dt and eta_dt.date() <= today.date() and (today - eta_dt).days <= 6:
+            if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 arrived_eta_alerts.append(f"File No: {f_no} MAL PORT PE LAG GAYA HAI!")
 
-            # e) ETA current date se 7 din agae chali gae ho -> Complete
             if eta_dt and (today - eta_dt).days >= 7: return "Complete"
             
-            # d) ETA forward date or within 6 days from current -> Arrived / Shipment on way
             if eta_dt:
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
                 if eta_dt > today + timedelta(days=6): return "Shipment on way"
             
-            # c) ETD checks when ETA is missing
             if etd_dt:
                 if etd_dt > today: return "Shipment not shipped"
                 if etd_dt <= today: return "Shipped"
                 
-            # b) File No text exist but no date -> LC Opening
             return "LC Opening"
 
         df['Status'] = df.apply(calculated_status, axis=1)
 
-        # 🔔 2. DISPLAY REAL-TIME POPUP ALERTS ON SCREEN
         if today_etd_alerts:
             for alert in set(today_etd_alerts): st.toast(f"🚢 {alert}", icon="🚀")
         if arrived_eta_alerts:
@@ -289,29 +282,26 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        # 🌟 5. ADVANCED ROW PER-STATUS COLORING FORMATTER
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                if row['Status'] == 'Arrived': color = 'background-color: #d4edda; color: #155724; font-weight: 500;' # Soft Pastel Green
-                elif row['Status'] == 'Complete': color = 'background-color: #e2e3e5; color: #383d41; text-decoration: line-through;' # Soft Muted Slate
-                elif row['Status'] == 'Query': color = 'background-color: #f8d7da; color: #721c24;' # Soft Red Warning
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fff3cd; color: #856404;' # Golden Yellow
+                if row['Status'] == 'Arrived': color = 'background-color: #d4edda; color: #155724; font-weight: 500;'
+                elif row['Status'] == 'Complete': color = 'background-color: #e2e3e5; color: #383d41; text-decoration: line-through;'
+                elif row['Status'] == 'Query': color = 'background-color: #f8d7da; color: #721c24;'
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fff3cd; color: #856404;'
             return [color] * len(row)
 
         try:
-            # Applying dynamic row background styling colors securely on grid data mapping
             styled_df = df_display.style.apply(style_rows, axis=1)
             st.dataframe(styled_df, use_container_width=True, hide_index=False)
         except:
             st.dataframe(df_display, use_container_width=True, hide_index=False)
     else: st.info("System mein koi data majood nahi hai.")
 
-# --- 2. NAYI ENTRY (WITH DROPDOWN AUTO-SUGGEST & HS CODE INTEGRATION) ---
+# --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("📝 Nayi Shipment Records Entry Portal")
     
-    # Fetching historical values for Auto-Suggest Lists (Requirement #3)
     past_suppliers = get_distinct_values("shipper")
     past_indenters = get_distinct_values("indenter")
     past_items = get_distinct_values("item_name", "shipment_items")
@@ -323,7 +313,6 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         
         c1, c2, c3, c4 = st.columns(4)
         
-        # 🌟 3. Dropdown Auto-Suggest Implementation for Indenter and Supplier
         indenter = c1.selectbox("Indenter Name", [""] + past_indenters if past_indenters else [""]) if past_indenters else c1.text_input("Indenter")
         file_no = c2.text_input("File No (Unique)")
         shipper = c3.selectbox("Supplier Name (Shipper)", [""] + past_suppliers if past_suppliers else [""]) if past_suppliers else c3.text_input("Shipper")
@@ -335,21 +324,19 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         ship_type = am3.selectbox("Type", ["FCL", "LCL"])
         
         st.markdown("---")
-        st.markdown("##### 🛒 Items Breakdown (Autocompletes Historic HS Codes)")
+        st.markdown("##### 🛒 Items Breakdown")
         
         items_inputs = []
         for i in range(1, 4):
             st.write(f"**Item #{i}:**")
             it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
             
-            # 🌟 3. Item Name Dropdown List Auto-Suggest
             name = it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
             brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
             
-            # 🌟 4. Automatic HS Code Lookup Mapping Detection Logic
             hs_suggestions = get_hs_codes_for_item(name) if name else []
             if hs_suggestions:
-                hs_code = it_hs.selectbox("HS Code (Historic Detected)", hs_suggestions, key=f"add_hs_drop_{i}")
+                hs_code = it_hs.selectbox("HS Code (Historic)", hs_suggestions, key=f"add_hs_drop_{i}")
             else:
                 hs_code = it_hs.text_input("HS Code", key=f"add_hs_text_{i}")
                 
@@ -380,7 +367,7 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
                     st.rerun()
                 except Exception as e: st.error(f"Error: Save nahi ho saka. Details: {e}")
 
-# --- 3. UPDATE / EDIT (WITH AUTOMATED FIELD VERIFICATION) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("🔄 Update Master Logs & Costing Data")
     df_raw = pd.read_sql('SELECT * FROM shipments', conn)
@@ -441,7 +428,6 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 u_name = it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
                 u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
                 
-                # Dynamic auto-complete mapping configuration during editing data logs update
                 hs_suggestions = get_hs_codes_for_item(u_name) if u_name else []
                 if hs_suggestions:
                     u_hs = it_col_hs.selectbox("HS Code", hs_suggestions, index=hs_suggestions.index(ex_hs) if ex_hs in hs_suggestions else 0, key=f"u_hs_drop_{file_to_update}_{idx}")
