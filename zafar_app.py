@@ -51,7 +51,7 @@ def init_db():
 
 init_db()
 
-# --- HELPER FUNCTIONS FOR AUTO-SUGGEST & HS CODE ---
+# --- HELPER FUNCTIONS ---
 def get_distinct_values(column_name, table_name="shipments"):
     try:
         c.execute(f"SELECT DISTINCT {column_name} FROM {table_name} WHERE {column_name} IS NOT NULL AND {column_name} != '' AND {column_name} != '-'")
@@ -73,25 +73,90 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "username" not in st.session_state: st.session_state["username"] = ""
 if "user_role" not in st.session_state: st.session_state["user_role"] = ""
 
-# --- GLOBAL STYLING INJECTOR ---
+# --- 🚀 GLOBAL INTERACTIVE ULTRA-MODERN STYLING INJECTOR ---
 st.markdown("""
     <style>
-        .stApp { background-color: #fafafa; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+        
+        .stApp {
+            background-color: #f6f8fa;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Dashboard Header Branded Area */
         .dashboard-header {
-            font-family: 'Georgia', serif; color: #1a252f; font-size: 1.6rem; font-weight: 700;
-            border-bottom: 2px solid #e67e22; padding-bottom: 6px; margin-bottom: 20px; margin-top: -10px;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+            background: linear-gradient(90deg, #ff7e5f, #feb47b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            border-bottom: 2px solid #e2e8f0;
         }
+        
+        /* Container Cards UI Enhancement */
         .custom-card {
-            background-color: #ffffff; padding: 16px 20px; border-radius: 8px;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; margin-bottom: 15px;
+            background: #ffffff;
+            padding: 18px 22px;
+            border-radius: 12px;
+            box-shadow: 0px 4px 20px rgba(0,0,0,0.02);
+            border: 1px solid #edf2f7;
+            margin-bottom: 20px;
         }
+        
         .card-title {
-            font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 1rem; font-weight: bold;
-            color: #2c3e50; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 12px;
         }
-        .stDownloadButton>button { background-color: #e67e22 !important; color: white !important; border-radius: 4px !important; border: none !important; font-weight: bold !important; padding: 6px 14px !important; font-size: 0.9rem !important; }
-        .stSidebar .stButton>button { background-color: #c0392b !important; color: #ffffff !important; font-weight: bold !important; border: 1px solid #962d22 !important; border-radius: 6px !important; padding: 8px 12px !important; transition: all 0.2s ease !important; }
-        .stSidebar .stButton>button:hover { background-color: #e74c3c !important; box-shadow: 0px 4px 10px rgba(192, 57, 43, 0.3) !important; }
+        
+        /* Modernized Custom Alert Banners Design UI */
+        .modern-alert-etd {
+            background: linear-gradient(135deg, #ff9966 0%, #ff5e62 100%);
+            color: white !important;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            box-shadow: 0px 4px 15px rgba(255, 94, 98, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .modern-alert-eta {
+            background: linear-gradient(135deg, #02aab0 0%, #00cdac 100%);
+            color: white !important;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            box-shadow: 0px 4px 15px rgba(0, 205, 172, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        /* Button styling integration mapping */
+        .stDownloadButton>button {
+            background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%) !important;
+            color: white !important;
+            border-radius: 8px !important;
+            border: none !important;
+            font-weight: 600 !important;
+            padding: 10px 20px !important;
+            box-shadow: 0px 4px 12px rgba(255, 126, 95, 0.25);
+            transition: all 0.3s ease;
+        }
+        .stDownloadButton>button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0px 6px 18px rgba(255, 126, 95, 0.4);
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -107,7 +172,6 @@ if not st.session_state["logged_in"]:
             .right-form { flex: 1; padding: 45px; display: flex; flex-direction: column; justify-content: center; background-color: #ffffff; }
         </style>
     """, unsafe_allow_html=True)
-    
     w1, w2, w3 = st.columns([1, 8, 1])
     with w2:
         st.markdown("""
@@ -131,7 +195,7 @@ if not st.session_state["logged_in"]:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = u_clean
                 st.session_state["user_role"] = result[0]
-                st.rerun()
+                st.st.rerun()
             else: st.error("Invalid credentials.")
         st.markdown("</div></div>", unsafe_allow_html=True)
     st.stop()
@@ -181,7 +245,6 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- Helper to parse date strings safely to datetime objects ---
 def parse_date(date_str):
     if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan"]: return None
     for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y', '%Y-%m-%d %H:%M:%S'):
@@ -191,7 +254,7 @@ def parse_date(date_str):
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-header">HAAMEEM - Logistics Master Executive Dashboard</div>', unsafe_allow_html=True)
     
     if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
         allowed_display_cols = ALL_AVAILABLE_COLUMNS
@@ -226,8 +289,8 @@ if menu == "📊 Dashboard":
     if not df.empty:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Alerts collection list
-        all_live_alerts = []
+        today_etd_alerts = []
+        arrived_eta_alerts = []
 
         def calculated_status(row):
             f_no = str(row['File No']).strip()
@@ -237,18 +300,15 @@ if menu == "📊 Dashboard":
             text_eta = row.get('ETA', '-') if 'ETA' in row else '-'
             eta_dt = parse_date(text_eta)
             
-            # Alerts tracking conditions
             if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
-                all_live_alerts.append(f"🚢 File No: {f_no} ({row.get('Item Name', '-')}) AAJ CHALEGA!")
+                today_etd_alerts.append(f"File No: {f_no} ({row.get('Item Name', '-')})")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
-                all_live_alerts.append(f"⚓ File No: {f_no} MAL PORT PE LAG GAYA HAI!")
+                arrived_eta_alerts.append(f"File No: {f_no}")
 
             if eta_dt and (today - eta_dt).days >= 7: return "Complete"
-            
             if eta_dt:
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
                 if eta_dt > today + timedelta(days=6): return "Shipment on way"
-            
             if etd_dt:
                 if etd_dt > today: return "Shipment not shipped"
                 if etd_dt <= today: return "Shipped"
@@ -257,21 +317,31 @@ if menu == "📊 Dashboard":
 
         df['Status'] = df.apply(calculated_status, axis=1)
 
-        # 🌟 FLOATING TOAST NOTIFICATIONS (🚨 FIXED: 10 se zyada hon tab bhi smooth stacked aaein ge aur auto-hide hon ge)
-        if all_live_alerts:
-            for alert_msg in set(all_live_alerts): 
-                st.toast(alert_msg)
+        # 🌟 1 & 2. DISMISSABLE GRADIENT HEAD BANNER ALERTS WITH EXPERT CLOSE ACTIONS
+        if today_etd_alerts:
+            for alert in set(today_etd_alerts):
+                st.markdown(f"""
+                    <div class="modern-alert-etd">
+                        <span>🚢 <b>{alert}</b> — KAAM KE LIYE TYAR! YEH AAJ CHALEGA.</span>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+        if arrived_eta_alerts:
+            for alert in set(arrived_eta_alerts):
+                # Using Native close container block layout
+                with st.expander(f"⚓ ALERT: {alert} MAL PORT PE LAG GAYA HAI!", expanded=True):
+                    st.write("Shipment container processing data is available in the table below. You can close this section anytime.")
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
-            st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Backup</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
             safe_download_df = df[safe_display_cols_clean]
-            st.download_button(label="🟢 Download Excel Sheet", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            st.download_button(label="🟢 Export Active Excel Sheet", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown('</div>', unsafe_allow_html=True)
             
         with c_top2:
-            st.markdown('<div class="custom-card"><div class="card-title">🔍 Quick Filters Control</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-card"><div class="card-title">🔍 Quick Filters Control Center</div>', unsafe_allow_html=True)
             f1, f2, f3 = st.columns(3)
             sel_comp = f1.multiselect("Import Entity:", COMPANIES)
             sel_bank = f2.multiselect("Opening Bank:", BANKS)
@@ -288,13 +358,16 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
+        # 🌟 5. NEW MODERN HIGH-CONTRAST DYNAMIC GRADIENT ROW FORMATTER LOOK
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                if row['Status'] == 'Arrived': color = 'background-color: #d4edda; color: #155724; font-weight: 500;'
-                elif row['Status'] == 'Complete': color = 'background-color: #e2e3e5; color: #383d41; text-decoration: line-through;'
-                elif row['Status'] == 'Query': color = 'background-color: #f8d7da; color: #721c24;'
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fff3cd; color: #856404;'
+                # Premium Modern Glassmorphism/Pastel Contrast Palette
+                if row['Status'] == 'Arrived': color = 'background-color: #ecfdf5; color: #065f46; font-weight: 600; border-left: 5px solid #10b981;' # Mint Emerald Neon Edge
+                elif row['Status'] == 'Complete': color = 'background-color: #f1f5f9; color: #64748b; text-decoration: line-through; opacity: 0.75;' # Clean Tech Slate Gray
+                elif row['Status'] == 'Query': color = 'background-color: #fff5f5; color: #9b1c1c; font-weight: 600; border-left: 5px solid #ef4444;' # Soft Crimson Alert Edge
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e; font-weight: 500; border-left: 5px solid #f59e0b;' # Vibrant Amber Sunset Edge
+                elif row['Status'] == 'Shipped': color = 'background-color: #eff6ff; color: #1e40af; font-weight: 500;' # Electric Soft Blue
             return [color] * len(row)
 
         try:
@@ -307,7 +380,6 @@ if menu == "📊 Dashboard":
 # --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("📝 Nayi Shipment Records Entry Portal")
-    
     past_suppliers = get_distinct_values("shipper")
     past_indenters = get_distinct_values("indenter")
     past_items = get_distinct_values("item_name", "shipment_items")
@@ -335,7 +407,6 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         for i in range(1, 4):
             st.write(f"**Item #{i}:**")
             it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
-            
             name = it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
             brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
             
@@ -418,7 +489,6 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             for idx in range(3):
                 st.write(f"**Item Row #{idx+1}:**")
                 it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
-                
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
                     item_row = df_ex_items.iloc[idx]
