@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import json
 from datetime import datetime
 
 # --- DATABASE SETUP ---
@@ -22,9 +23,16 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, password TEXT, role TEXT)''')
+                  
+    # 🌟 NAYA TABLE: Column-level rights save karne ke liye
+    c.execute('''CREATE TABLE IF NOT EXISTS user_column_rights 
+                 (username TEXT PRIMARY KEY, allowed_columns TEXT)''')
     
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
+        # Admin ke liye default saare columns allow dakhil karna
+        all_cols = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
+        c.execute("INSERT OR IGNORE INTO user_column_rights (username, allowed_columns) VALUES ('zafar', ?)", (json.dumps(all_cols),))
         conn.commit()
     except:
         pass
@@ -49,65 +57,32 @@ if "username" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = ""
 
+ALL_AVAILABLE_COLUMNS = [
+    'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+    'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
+    'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
+    'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+]
+
 # --- GLOBAL ADVANCED STYLING INJECTOR ---
 st.markdown("""
     <style>
-        .stApp {
-            background-color: #fafafa;
-        }
+        .stApp { background-color: #fafafa; }
         .dashboard-header {
-            font-family: 'Georgia', serif;
-            color: #1a252f;
-            font-size: 1.6rem;
-            font-weight: 700;
-            border-bottom: 2px solid #e67e22;
-            padding-bottom: 6px;
-            margin-bottom: 20px;
-            margin-top: -10px;
+            font-family: 'Georgia', serif; color: #1a252f; font-size: 1.6rem; font-weight: 700;
+            border-bottom: 2px solid #e67e22; padding-bottom: 6px; margin-bottom: 20px; margin-top: -10px;
         }
         .custom-card {
-            background-color: #ffffff;
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.03);
-            border: 1px solid #e2e8f0;
-            margin-bottom: 15px;
+            background-color: #ffffff; padding: 16px 20px; border-radius: 8px;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; margin-bottom: 15px;
         }
         .card-title {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            font-size: 1rem;
-            font-weight: bold;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 1rem; font-weight: bold;
+            color: #2c3e50; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
         }
-        .stDownloadButton>button {
-            background-color: #e67e22 !important;
-            color: white !important;
-            border-radius: 4px !important;
-            border: none !important;
-            font-weight: bold !important;
-            padding: 6px 14px !important;
-            font-size: 0.9rem !important;
-        }
-        .stDownloadButton>button:hover {
-            background-color: #d35400 !important;
-        }
-        .stSidebar .stButton>button {
-            background-color: #c0392b !important;
-            color: #ffffff !important;
-            font-weight: bold !important;
-            border: 1px solid #962d22 !important;
-            border-radius: 6px !important;
-            padding: 8px 12px !important;
-            transition: all 0.2s ease !important;
-        }
-        .stSidebar .stButton>button:hover {
-            background-color: #e74c3c !important;
-            box-shadow: 0px 4px 10px rgba(192, 57, 43, 0.3) !important;
-        }
+        .stDownloadButton>button { background-color: #e67e22 !important; color: white !important; border-radius: 4px !important; border: none !important; font-weight: bold !important; padding: 6px 14px !important; font-size: 0.9rem !important; }
+        .stSidebar .stButton>button { background-color: #c0392b !important; color: #ffffff !important; font-weight: bold !important; border: 1px solid #962d22 !important; border-radius: 6px !important; padding: 8px 12px !important; transition: all 0.2s ease !important; }
+        .stSidebar .stButton>button:hover { background-color: #e74c3c !important; box-shadow: 0px 4px 10px rgba(192, 57, 43, 0.3) !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -116,20 +91,9 @@ if not st.session_state["logged_in"]:
     st.markdown("""
         <style>
             [data-testid="stHeader"], [data-testid="stSidebar"] { display: none !important; }
-            .login-container {
-                display: flex; flex-direction: row; background-color: #ffffff;
-                border-radius: 12px; box-shadow: 0px 8px 24px rgba(0,0,0,0.12);
-                overflow: hidden; margin-top: 5%; min-height: 480px; border: 1px solid #e2e8f0;
-            }
-            .left-banner {
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-                padding: 40px; color: #ffffff; flex: 1.1; display: flex;
-                flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative;
-            }
-            .left-banner::after {
-                content: ""; position: absolute; width: 150%; height: 100%;
-                background: rgba(255, 255, 255, 0.06); top: -30%; left: -20%; transform: rotate(-15deg); border-radius: 50%;
-            }
+            .login-container { display: flex; flex-direction: row; background-color: #ffffff; border-radius: 12px; box-shadow: 0px 8px 24px rgba(0,0,0,0.12); overflow: hidden; margin-top: 5%; min-height: 480px; border: 1px solid #e2e8f0; }
+            .left-banner { background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); padding: 40px; color: #ffffff; flex: 1.1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }
+            .left-banner::after { content: ""; position: absolute; width: 150%; height: 100%; background: rgba(255, 255, 255, 0.06); top: -30%; left: -20%; transform: rotate(-15deg); border-radius: 50%; }
             .left-banner h1 { color: #ffffff !important; font-family: 'Georgia', serif; font-weight: bold; font-size: 2.3rem; margin-bottom: 15px; letter-spacing: 1px; }
             .left-banner p { font-size: 1.05rem; opacity: 0.9; max-width: 360px; line-height: 1.5; }
             .brand-logo-icon { font-size: 4rem; margin-bottom: 20px; color: #fff3e0; }
@@ -178,27 +142,11 @@ if not st.session_state["logged_in"]:
 # --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
 st.markdown("""
     <style>
-        [data-testid="stSidebar"] {
-            background-color: #243242 !important;
-            color: #ffffff !important;
-        }
-        [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] span {
-            color: #ffffff !important;
-        }
-        .stRadio>div{
-            gap: 6px;
-        }
-        div[data-testid="stRadio"] label {
-            background-color: #2c3d52;
-            padding: 6px 12px;
-            border-radius: 4px;
-            border: 1px solid #344963;
-            transition: all 0.2s ease;
-        }
-        div[data-testid="stRadio"] label:hover {
-            background-color: #e67e22;
-            cursor: pointer;
-        }
+        [data-testid="stSidebar"] { background-color: #243242 !important; color: #ffffff !important; }
+        [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] span { color: #ffffff !important; }
+        .stRadio>div{ gap: 6px; }
+        div[data-testid="stRadio"] label { background-color: #2c3d52; padding: 6px 12px; border-radius: 4px; border: 1px solid #344963; transition: all 0.2s ease; }
+        div[data-testid="stRadio"] label:hover { background-color: #e67e22; cursor: pointer; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -228,10 +176,19 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- 1. DASHBOARD ---
+# --- 1. DASHBOARD WITH VARIABLE COLUMN SECURITY ---
 if menu == "📊 Dashboard":
     st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
     
+    # 🌟 User ke assigned rights check karna database se
+    c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
+    rights_res = c.fetchone()
+    if rights_res:
+        allowed_display_cols = json.loads(rights_res[0])
+    else:
+        # Fallback agar user ke rights dakhil na hon (Sirf base fields dikhein)
+        allowed_display_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
+
     try:
         query = '''
             SELECT 
@@ -259,14 +216,6 @@ if menu == "📊 Dashboard":
         }
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
 
-    expected_cols = [
-        'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-        'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
-        'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
-    ]
-    for column_check in expected_cols:
-        if column_check not in df.columns: df[column_check] = "-"
-
     if not df.empty:
         today = datetime.now()
         def get_status(row):
@@ -281,12 +230,12 @@ if menu == "📊 Dashboard":
         df['Status'] = df.apply(get_status, axis=1)
 
         c_top1, c_top2 = st.columns([2, 5])
-        
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
             if st.session_state["user_role"] in ["Admin", "Manager"]:
-                csv_data = df.to_csv(index=False).encode('utf-8')
-                # 🌟 FIXED LINE: 'data=' ka keyword parameter lagaya hai error khatam karne ke liye
+                # File download mein bhi sirf allowed columns ka data hi jayega security ke liye
+                safe_download_df = df[[c for c in allowed_display_cols if c in df.columns]]
+                csv_data = safe_download_df.to_csv(index=False).encode('utf-8')
                 st.download_button(label="🟢 Download Excel Sheet", data=csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             else:
                 st.caption("No backup clearance rights.")
@@ -307,8 +256,8 @@ if menu == "📊 Dashboard":
         if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
-        display_cols = [c for c in cols_order if c in df.columns]
+        # 🌟 GRID PERMISSION FILTER: Sirf wahi columns select honge jo Admin ne allow kiye hain
+        display_cols = [c for c in allowed_display_cols if c in df.columns]
         df_display = df[display_cols]
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
@@ -316,13 +265,7 @@ if menu == "📊 Dashboard":
 
         st.markdown("""
             <style>
-                div[data-testid="stDataFrame"] table th {
-                    background-color: #243242 !important;
-                    color: #ffffff !important;
-                    font-weight: bold !important;
-                    font-size: 0.9rem !important;
-                    text-align: center !important;
-                }
+                div[data-testid="stDataFrame"] table th { background-color: #243242 !important; color: #ffffff !important; font-weight: bold !important; font-size: 0.9rem !important; text-align: center !important; }
                 div[data-testid="stDataFrame"] table td { font-size: 0.85rem !important; }
             </style>
         """, unsafe_allow_html=True)
@@ -466,9 +409,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Records updated successfully!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS ---
+# --- 4. 👥 MANAGE ACCOUNTS (WITH COLUMN RIGHTS CONFIGURATOR) ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.subheader("👥 System Accounts Control Center")
+    st.subheader("👥 System Accounts & Column Security Settings")
+    
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.write("##### 👤 Naya Account Banayein")
@@ -479,9 +423,12 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
             if st.form_submit_button("Create Account"):
                 if new_user and new_pass:
                     try:
-                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user.strip(), new_pass, selected_role))
+                        u_clean = new_user.strip().lower()
+                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
+                        # Default hons ke liye saare columns shuru mein allow kardena
+                        c.execute("INSERT INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
                         conn.commit()
-                        st.success(f"✅ User '{new_user}' created!")
+                        st.success(f"✅ User '{u_clean}' created!")
                         st.rerun()
                     except: st.error("Error: Username pehle se dakhil hai.")
                 else: st.error("Fields bhanna zaroori hain.")
@@ -500,17 +447,49 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         st.success(f"✅ '{target_user}' ka password change ho gaya!")
                     else: st.error("Naya password likhna zaroori hai.")
             st.write("---")
-            st.warning(f"⚠️ Kya aap '{target_user}' ka account permanent khatam karna chahte hain?")
             if st.button("❌ Haan, Account Delete Kardo"):
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
+                c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
                 conn.commit()
-                st.success(f"🗑️ User '{target_user}' successfully deleted!")
+                st.success(f"🗑| User '{target_user}' deleted!")
                 st.rerun()
         else:
-            st.info("Zafar bhai ke ilawa koi aur extra sub-account nahi bana hua.")
+            st.info("Zafar bhai ke ilawa koi aur sub-account nahi bana hua.")
 
     st.markdown("---")
-    st.write("##### 📊 User Accounts & Assigned Rights List")
+    
+    # 🌟 NEW BLOCK: COLUMN SECURITY ASSIGNER FOR ADMIN
+    st.write("##### 🎛️ Assign Column-Level Visibility Rights")
+    df_all_users_raw = pd.read_sql("SELECT username FROM users", conn)
+    user_to_configure = st.selectbox("Kis user ke Columns control karne hain?", df_all_users_raw['username'].tolist())
+    
+    # User ke current allowed columns fetch karna configuration ke liye
+    c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (user_to_configure,))
+    current_rights_res = c.fetchone()
+    current_allowed = json.loads(current_rights_res[0]) if current_rights_res else ALL_AVAILABLE_COLUMNS
+    
+    st.markdown(f"**User `{user_to_configure.upper()}` ko dashboard par kaunse columns dikhane hain? Check lagayein:**")
+    
+    # Checkboxes ko 4 tameezdar columns mein display karna taake interface saaf rahe
+    chk_cols = st.columns(4)
+    chosen_columns = []
+    
+    for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
+        with chk_cols[idx % 4]:
+            is_checked = col_name in current_allowed
+            if st.checkbox(col_name, value=is_checked, key=f"chk_{user_to_configure}_{col_name}"):
+                chosen_columns.append(col_name)
+                
+    if st.button("🔒 Column Permissions Save Karein", use_container_width=True):
+        if not chosen_columns:
+            st.error("Kam az kam aik column allow karna zaroori hai!")
+        else:
+            c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
+            conn.commit()
+            st.success(f"✅ `{user_to_configure.upper()}` ke columns ki security save ho gayi! Jab yeh login karega, isay sirf aapke select kiye hue columns hi dikhenge.")
+
+    st.markdown("---")
+    st.write("##### 📊 User Accounts & Assigned Roles List")
     df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
     def map_rights(role):
         if role == "Admin": return "Full System Control + Account Management"
