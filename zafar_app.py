@@ -200,7 +200,6 @@ if menu == "📊 Dashboard":
         rights_res = c.fetchone()
         allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
 
-    # 🌟 CRITICAL FIX: Wrap the complex SQL query in a try-except fallback block to prevent DatabaseError crash
     try:
         query = '''
             SELECT 
@@ -215,7 +214,6 @@ if menu == "📊 Dashboard":
         '''
         df = pd.read_sql(query, conn)
     except:
-        # Ultimate fail-safe fallback to read base data table if relational mappings break down
         df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty and 'Company Name' not in df.columns:
@@ -258,10 +256,15 @@ if menu == "📊 Dashboard":
 
         df['Status'] = df.apply(calculated_status, axis=1)
 
+        # 🌟 1 & 2. DISMISSABLE PROFESSIONAL ALERTS SYSTEM (FIXED RED BOXES)
         if today_etd_alerts:
-            for alert in set(today_etd_alerts): st.toast(f"🚢 {alert}", icon="🚀")
+            for alert in set(today_etd_alerts): 
+                # Floating Toast Alert: Kuch seconds baad khud ba khud gaayab ho jayega
+                st.toast(f"🚀 {alert}")
         if arrived_eta_alerts:
-            for alert in set(arrived_eta_alerts): st.error(f"⚓ {alert}")
+            for alert in set(arrived_eta_alerts): 
+                # st.info with icon: User isay right side ke 'X' par click karke khud gaayab kar sakta hai
+                st.info(f"⚓ {alert}", icon="ℹ️")
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
@@ -319,7 +322,6 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         bank_name = col_top2.selectbox("Bank Name", BANKS)
         
         c1, c2, c3, c4 = st.columns(4)
-        
         indenter = c1.selectbox("Indenter Name", [""] + past_indenters if past_indenters else [""]) if past_indenters else c1.text_input("Indenter")
         file_no = c2.text_input("File No (Unique)")
         shipper = c3.selectbox("Supplier Name (Shipper)", [""] + past_suppliers if past_suppliers else [""]) if past_suppliers else c3.text_input("Shipper")
