@@ -21,19 +21,19 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, brand_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
     
-    # 3. 🔐 NAYA USER TABLE (Accounts & Rights Ke Liye)
+    # 3. Users Table
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, password TEXT, role TEXT)''')
     
-    # Master Admin Account Automatically Create Karein (Agar pehle se na ho)
+    # Auto-create Admin
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
         conn.commit()
     except:
         pass
 
-    # Column integrity check
+    # Ensure all columns exist in SQLite memory
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
     except: pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
@@ -47,7 +47,6 @@ init_db()
 # --- INTERFACE SETUP ---
 st.set_page_config(page_title="Zafar Logistics ERP", layout="wide")
 
-# Session States for Login Tracking
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "username" not in st.session_state:
@@ -74,36 +73,30 @@ if not st.session_state["logged_in"]:
                     st.session_state["logged_in"] = True
                     st.session_state["username"] = user_input
                     st.session_state["user_role"] = result[0]
-                    st.success(f"Welcome {user_input}! Logging in...")
+                    st.success("Logging in...")
                     st.rerun()
                 else:
-                    st.error("Ghalat Username ya Password! Dobara check karein.")
-    st.stop() # Form fill hone tak aage ka code rok do
+                    st.error("Ghalat Username ya Password!")
+    st.stop()
 
-# --- 📊 MASTER APP SECTION (LOGIN HONE KE BAAD) ---
+# --- 📊 MASTER APP SECTION ---
 st.sidebar.title(f"👤 User: {st.session_state['username']}")
-st.sidebar.info(f"🛡️ Rights Level: {st.session_state['user_role']}")
+st.sidebar.info(f"🛡️ Rights: {st.session_state['user_role']}")
 
-# User Rights ke mutabik Sidebar Navigation Menu banana
 available_options = ["📊 Dashboard"]
-
 if st.session_state["user_role"] in ["Admin", "Manager"]:
     available_options.append("📝 Nayi Entry (Add)")
     available_options.append("🔄 Update / Edit")
-
 if st.session_state["user_role"] == "Admin":
     available_options.append("👥 Manage Users / Accounts")
 
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-# Logout Button
 if st.sidebar.button("🚪 Logout System"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
     st.session_state["user_role"] = ""
     st.rerun()
-
-st.title("🛡️ Zafar Logistics ERP - Professional Master System")
 
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
@@ -111,30 +104,42 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- 1. DASHBOARD (SAB DEKH SAKTE HAIN) ---
+# --- 1. DASHBOARD (FIXED DATA RECOVERY LOGIC) ---
 if menu == "📊 Dashboard":
+    # Robust unified query with standard fallbacks
     query = '''
         SELECT 
-            s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
-            IFNULL(s.indenter, "-") AS [Indenter], IFNULL(s.shipper, "-") AS [Supplier Name],
-            CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "") END AS [Item Name],
-            IFNULL(i.brand_name, "-") AS [Brand Name], IFNULL(i.hs_code, "-") AS [HS Code],
-            CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "") END AS [Quantity],
-            CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "") END AS [Unit],
-            CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE IFNULL(s.unit_price, "") END AS [Unit Price],
+            s.company_name AS [Company Name], 
+            s.bank_name AS [Bank Name], 
+            s.file_no AS [File No],
+            IFNULL(s.indenter, "-") AS [Indenter], 
+            IFNULL(s.shipper, "-") AS [Supplier Name],
+            CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "-") END AS [Item Name],
+            IFNULL(i.brand_name, "-") AS [Brand Name], 
+            IFNULL(i.hs_code, "-") AS [HS Code],
+            CASE WHEN i.qty IS NOT NULL AND i.qty != "" THEN i.qty ELSE IFNULL(s.weight, "-") END AS [Quantity],
+            CASE WHEN i.unit IS NOT NULL AND i.unit != "" THEN i.unit ELSE IFNULL(s.weight_unit, "-") END AS [Unit],
+            CASE WHEN i.unit_price IS NOT NULL AND i.unit_price != "" THEN i.unit_price ELSE IFNULL(s.unit_price, "-") END AS [Unit Price],
             IFNULL(i.actual_costing, "-") AS [Actual Costing (PKR)],
-            s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
-            s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
+            IFNULL(s.fc_amount, "-") AS [Total LC Value], 
+            IFNULL(s.currency, "-") AS [Currency], 
+            IFNULL(s.shipment_type, "-") AS [Type],
+            IFNULL(s.etd, "") AS [ETD], 
+            IFNULL(s.eta, "") AS [ETA], 
+            IFNULL(s.bl_no, "-") AS [BL / LC No], 
+            IFNULL(s.bank_docs, "-") AS [Bank Docs], 
+            IFNULL(s.remarks, "") AS [Remarks]
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    try: df = pd.read_sql(query, conn)
-    except: df = pd.read_sql('SELECT * FROM shipments', conn)
+    df = pd.read_sql(query, conn)
 
     if not df.empty:
+        # Dynamic Auto Status Engine
         today = datetime.now()
         def get_status(row):
             try:
+                if not row['ETA'] or row['ETA'] == "": return "📄 LC Opened"
                 eta = pd.to_datetime(row['ETA'], errors='coerce')
                 etd = pd.to_datetime(row['ETD'], errors='coerce')
                 if pd.notnull(eta) and eta <= today: return "✅ Arrived"
@@ -143,35 +148,49 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         df['Status'] = df.apply(get_status, axis=1)
 
-        # Excel Backup (Manager aur Admin ke liye)
+        # Excel Backup
         if st.session_state["user_role"] in ["Admin", "Manager"]:
             st.write("### 📥 System Backup")
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(label="🟢 Download Data for Excel", data=csv_data, file_name=f"Zafar_Backup_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown("---")
         
+        # Filters configuration
         st.write("### 🔍 Filters")
         f1, f2, f3 = st.columns(3)
         sel_comp = f1.multiselect("Company:", COMPANIES)
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
-        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
-        if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        # Safe dynamic filtering to avoid column collapse
+        if 'Company Name' in df.columns and sel_comp: 
+            df = df[df['Company Name'].isin(sel_comp)]
+        if 'Bank Name' in df.columns and sel_bank: 
+            df = df[df['Bank Name'].isin(sel_bank)]
+        if search: 
+            df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
+        # Explicit clean column ordering mapped to display grid
+        cols_order = [
+            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
+            'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
+            'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+        ]
+        
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
+        
+        # Continuous clean serial indexing sequence
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        st.dataframe(df_display.fillna(""), use_container_width=True, hide_index=False)
+        st.dataframe(df_display.fillna("-"), use_container_width=True, hide_index=False)
     else:
-        st.info("Data nahi hai.")
+        st.info("System mein koi data majood nahi hai.")
 
-# --- 2. NAYI ENTRY (ADMIN & MANAGER) ---
+# --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("📝 Nayi Shipment & Multiple Items Entry")
     with st.form("add_form", clear_on_submit=True):
@@ -221,11 +240,11 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
                     for item in items_inputs:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                     conn.commit()
-                    st.success("✅ New shipment recorded!")
+                    st.success("✅ Save ho gaya!")
                     st.rerun()
-                except: st.error("Error: File No pehle se majood hai.")
+                except: st.error("Error: Save nahi ho saka.")
 
-# --- 3. UPDATE / EDIT (ADMIN & MANAGER) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("🔄 Update Master, Items & Actual Costing Data")
     df_ship = pd.read_sql('SELECT * FROM shipments', conn)
@@ -251,13 +270,13 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
-                    ex_name = df_ex_items.iloc[idx]['item_name']
-                    ex_brand = df_ex_items.iloc[idx]['brand_name'] if 'brand_name' in df_ex_items.columns else ""
-                    ex_hs = df_ex_items.iloc[idx]['hs_code'] if 'hs_code' in df_ex_items.columns else ""
-                    ex_qty = df_ex_items.iloc[idx]['qty']
-                    ex_unit = df_ex_items.iloc[idx]['unit']
-                    ex_price = df_ex_items.iloc[idx]['unit_price']
-                    ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns else ""
+                    ex_name = df_ex_items.iloc[idx]['item_name'] if df_ex_items.iloc[idx]['item_name'] else ""
+                    ex_brand = df_ex_items.iloc[idx]['brand_name'] if 'brand_name' in df_ex_items.columns and df_ex_items.iloc[idx]['brand_name'] else ""
+                    ex_hs = df_ex_items.iloc[idx]['hs_code'] if 'hs_code' in df_ex_items.columns and df_ex_items.iloc[idx]['hs_code'] else ""
+                    ex_qty = df_ex_items.iloc[idx]['qty'] if df_ex_items.iloc[idx]['qty'] else ""
+                    ex_unit = df_ex_items.iloc[idx]['unit'] if df_ex_items.iloc[idx]['unit'] else "KG"
+                    ex_price = df_ex_items.iloc[idx]['unit_price'] if df_ex_items.iloc[idx]['unit_price'] else ""
+                    ex_cost = df_ex_items.iloc[idx]['actual_costing'] if 'actual_costing' in df_ex_items.columns and df_ex_items.iloc[idx]['actual_costing'] else ""
                 
                 u_name = it_col1.text_input("Item Name", value=ex_name, key=f"u_name_{file_to_update}_{idx}")
                 u_brand = it_col_b.text_input("Brand", value=ex_brand, key=f"u_brand_{file_to_update}_{idx}")
@@ -284,30 +303,20 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Updated!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS (SIRF ZAFAR BHAI / ADMIN KE LIYE) ---
+# --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.subheader("👥 Unlimited Accounts Control Center")
-    
-    # Form to create new user
+    st.subheader("👥 Accounts Control Center")
     with st.form("create_user_form"):
-        st.write("##### 👤 Naya User Account Banayein")
         new_user = st.text_input("Username:")
         new_pass = st.text_input("Password:", type="password")
-        new_role = st.selectbox("Rights Level (Role):", ROLES)
-        create_btn = st.form_submit_button("Create Account")
-        
-        if create_btn:
+        new_role = st.selectbox("Role:", ROLES)
+        if st.form_submit_button("Create Account"):
             if new_user and new_pass:
                 try:
                     c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user, new_pass, new_role))
                     conn.commit()
-                    st.success(f"✅ User '{new_user}' successfully created with rights level '{new_role}'!")
-                except:
-                    st.error("Error: Yeh Username pehle se kisi ka hai!")
-            else:
-                st.error("Username aur Password likhna zaroori hai.")
-                
+                    st.success(f"✅ User '{new_user}' created!")
+                except: st.error("Username already exists.")
     st.markdown("---")
-    st.write("##### 📊 Majooda User Accounts Ki List")
     df_users = pd.read_sql("SELECT id, username, role FROM users", conn)
     st.dataframe(df_users, use_container_width=True)
