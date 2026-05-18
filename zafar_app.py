@@ -49,32 +49,137 @@ if "username" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = ""
 
-# --- 🔑 LOGIN SCREEN ---
+# --- 🔑 PREMIUM SPLIT LOGIN SCREEN DESIGN ---
 if not st.session_state["logged_in"]:
-    st.markdown("<h2 style='text-align: center;'>🔒 Zafar Logistics ERP - Secure Login</h2>", unsafe_allow_html=True)
-    st.write("")
-    
-    c1, c2, c3 = st.columns([1, 2, 1])
-    with c2:
-        with st.form("login_form"):
-            user_input = st.text_input("Username:")
-            pass_input = st.text_input("Password:", type="password")
-            submit_login = st.form_submit_button("Sign In / Login")
+    # Custom CSS Injector for Premium Interface
+    st.markdown("""
+        <style>
+            /* Hide Default Streamlit Elements on Login Page */
+            [data-testid="stHeader"], [data-testid="stSidebar"] {
+                display: none !important;
+            }
             
-            if submit_login:
-                c.execute("SELECT role FROM users WHERE username=? AND password=?", (user_input, pass_input))
-                result = c.fetchone()
-                if result:
-                    st.session_state["logged_in"] = True
-                    st.session_state["username"] = user_input
-                    st.session_state["user_role"] = result[0]
-                    st.success("Logging in...")
-                    st.rerun()
-                else:
-                    st.error("Ghalat Username ya Password!")
+            /* Main Login Container Styling */
+            .login-container {
+                display: flex;
+                flex-direction: row;
+                background-color: #ffffff;
+                border-radius: 16px;
+                box-shadow: 0px 10px 30px rgba(0,0,0,0.15);
+                overflow: hidden;
+                margin-top: 5%;
+                min-height: 500px;
+            }
+            
+            /* Left Banner (Visual Section) */
+            .left-banner {
+                background: linear-gradient(135deg, #0d3b66 0%, #001f3f 100%);
+                padding: 40px;
+                color: #ffffff;
+                flex: 1.2;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                text-align: center;
+                border-right: 4px solid #0056b3;
+                position: relative;
+            }
+            
+            .left-banner h1 {
+                color: #ffffff !important;
+                font-family: 'Helvetica Neue', Arial, sans-serif;
+                font-weight: 700;
+                font-size: 2.5rem;
+                margin-bottom: 20px;
+                text-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+            }
+            
+            .left-banner p {
+                font-size: 1.1rem;
+                opacity: 0.85;
+                max-width: 400px;
+                line-height: 1.6;
+            }
+            
+            /* Graphic placeholder icons mimicking ship/shield activity */
+            .graphic-icon {
+                font-size: 5rem;
+                margin-bottom: 15px;
+                animation: pulse 2s infinite;
+            }
+            
+            /* Right Section (Form Area) */
+            .right-form {
+                flex: 1;
+                padding: 50px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                background-color: #f8f9fa;
+            }
+            
+            @keyframes pulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.05); }
+                100% { transform: scale(1); }
+            }
+            
+            /* Tablet/Mobile Compatibility responsiveness */
+            @media (max-width: 768px) {
+                .login-container {
+                    flex-direction: column;
+                }
+                .left-banner {
+                    padding: 30px;
+                }
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Grid wrapper layouts
+    w1, w2, w3 = st.columns([1, 10, 1])
+    with w2:
+        st.markdown("""
+            <div class="login-container">
+                <div class="left-banner">
+                    <div class="graphic-icon">🛡️⛴️</div>
+                    <h1>Zafar Logistics ERP</h1>
+                    <p>Professional Master System. Secure Data Integrity, Multi-User Operations Tracking, and Global Trade Management Tools.</p>
+                </div>
+                <div class="right-form">
+                    <h3 style='color: #0d3b66; font-weight:700; margin-bottom: 5px;'>🔒 Secure Portal Entry</h3>
+                    <p style='color: #6c757d; font-size: 0.9rem; margin-bottom: 25px;'>Authorized Personnel Only. Transactions are monitored.</p>
+        """, unsafe_allow_html=True)
+        
+        # Streamlit Input Fields Rendered Inside HTML Right Area Block Injection
+        user_input = st.text_input("Username ID:", placeholder="e.g. zafar", key="login_uid")
+        pass_input = st.text_input("Security Password:", type="password", placeholder="••••••••", key="login_pwd")
+        
+        st.write("")
+        submit_login = st.button("🚀 Access Secure Dashboard", use_container_width=True)
+        
+        if submit_login:
+            c.execute("SELECT role FROM users WHERE username=? AND password=?", (user_input.strip(), pass_input))
+            result = c.fetchone()
+            if result:
+                st.session_state["logged_in"] = True
+                st.session_state["username"] = user_input.strip()
+                st.session_state["user_role"] = result[0]
+                st.success("Access Granted! Loading system dashboard...")
+                st.rerun()
+            else:
+                st.error("Access Denied: Invalid credentials.")
+                
+        # Closing div structures safely
+        st.markdown("""
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
     st.stop()
 
-# --- 📊 MASTER APP SECTION ---
+# --- 📊 MASTER APP SECTION (AFTER SUCCESSFUL SIGN-IN) ---
 st.sidebar.title(f"👤 User: {st.session_state['username']}")
 st.sidebar.info(f"🛡️ Rights: {st.session_state['user_role']}")
 
@@ -254,26 +359,19 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
                     st.rerun()
                 except: st.error("Error: Save nahi ho saka.")
 
-# --- 3. UPDATE / EDIT (🔑 KEYERROR & SUBMIT BUTTON FIX) ---
+# --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("🔄 Update Master, Items & Actual Costing Data")
-    
-    # Raw dataframe load karke columns lowercase protection lagai hai
     df_raw = pd.read_sql('SELECT * FROM shipments', conn)
     
     if not df_raw.empty:
-        # File selector dropdown
         file_to_update = st.selectbox("Select File No to Update:", df_raw['file_no'].tolist())
         row = df_raw[df_raw['file_no'] == file_to_update].iloc[0]
-        
-        # Current file_no ke selected item splits load karein
         df_ex_items = pd.read_sql(f"SELECT * FROM shipment_items WHERE file_no='{file_to_update}'", conn)
         
-        # Form structure wrapped inside explicit key matching state refresh
         with st.form(key=f"form_update_{file_to_update}"):
             u1, u2 = st.columns(2)
             
-            # Safe mapping functions using case-insensitive check to avoid KeyError
             def get_val(row_obj, keys_list, default=""):
                 for k in keys_list:
                     if k in row_obj: return row_obj[k]
@@ -301,8 +399,6 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             u_type = st.selectbox("Shipment Type", ["FCL", "LCL"], index=0 if type_val == "FCL" else 1)
             
             st.markdown("---")
-            st.markdown("##### 🛒 Edit Items, Brand & Add Actual Costing Here")
-            
             updated_items = []
             for idx in range(4):
                 st.write(f"**Item Row #{idx+1}:**")
@@ -337,14 +433,13 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             u_docs = u2.selectbox("Bank Docs", ["Pending", "OK"], index=0 if docs_val == "Pending" else 1)
             u_remarks = st.text_area("Remarks", value=str(rem_val))
             
-            # Explicit form submit button declaration to clean the "Missing Submit Button" notice
             if st.form_submit_button("💾 Update Master & Items"):
                 c.execute('''UPDATE shipments SET company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?''', (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                 conn.commit()
-                st.success("✅ Records successfully updated!")
+                st.success("✅ Updated!")
                 st.rerun()
 
 # --- 4. 👥 MANAGE ACCOUNTS ---
