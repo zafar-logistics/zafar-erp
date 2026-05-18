@@ -9,53 +9,32 @@ conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
 def init_db():
-    # 1. Main Shipments Table
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
                   shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
-    # 2. Items Table
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   file_no TEXT, item_name TEXT, brand_name TEXT, hs_code TEXT, qty TEXT, unit TEXT, unit_price TEXT, actual_costing TEXT)''')
     
-    # 3. Users Table
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, password TEXT, role TEXT)''')
     
-    # Auto-create Master Admin Account
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
         conn.commit()
     except:
         pass
 
-    # 🌟 PHYSICAL COLUMN INJECTION: Back-end par forcefully check aur column create karne ke liye
-    columns_to_ensure = [
-        ('brand_name', 'TEXT'),
-        ('hs_code', 'TEXT'),
-        ('actual_costing', 'TEXT')
-    ]
-    for col_name, col_type in columns_to_ensure:
-        try:
-            c.execute(f'ALTER TABLE shipment_items ADD COLUMN {col_name} {col_type}')
-        except:
-            pass # Agar column pehle se bana hua hai toh bina chere agay barho
-
-    # Main shipments fallback protection columns
-    fallback_cols = [
-        ('bank_name', 'TEXT'), ('company_name', 'TEXT'), ('currency', 'TEXT'), 
-        ('shipment_type', 'TEXT'), ('items', 'TEXT'), ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('unit_price', 'TEXT'),
-        ('indenter', 'TEXT'), ('shipper', 'TEXT')
-    ]
-    for col_name, col_type in fallback_cols:
-        try:
-            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
-        except:
-            pass
+    try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
+    except: pass
+    try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
+    except: pass
+    try: c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
+    except: pass
     conn.commit()
 
 init_db()
@@ -150,11 +129,9 @@ if menu == "📊 Dashboard":
     try:
         df = pd.read_sql(query, conn)
     except:
-        # Ultimate fallback to make sure screen never goes red
         df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
-        # Auto Status
         today = datetime.now()
         def get_status(row):
             try:
@@ -167,7 +144,6 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         df['Status'] = df.apply(get_status, axis=1)
 
-        # Excel Backup
         if st.session_state["user_role"] in ["Admin", "Manager"]:
             st.write("### 📥 System Backup")
             csv_data = df.to_csv(index=False).encode('utf-8')
@@ -180,24 +156,13 @@ if menu == "📊 Dashboard":
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        if 'Company Name' in df.columns and sel_comp: 
-            df = df[df['Company Name'].isin(sel_comp)]
-        if 'Bank Name' in df.columns and sel_bank: 
-            df = df[df['Bank Name'].isin(sel_bank)]
-        if search: 
-            df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
+        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
+        if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Sequence Columns mapping
-        cols_order = [
-            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
-            'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
-            'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
-        ]
-        
+        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
-        
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
@@ -319,20 +284,59 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Updated!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS ---
+# --- 4. 👥 MANAGE ACCOUNTS (WITH RIGHTS VISUALIZER) ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.subheader("👥 Accounts Control Center")
+    st.subheader("👥 Accounts Control Center & Rights Settings")
+    
+    # 🌟 Real-time Rights Preview Selector (Form se pehle rakha hai taake live update ho)
+    selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES)
+    
+    # Show explicit checkboxes based on selected role
+    st.write("##### 🛡️ Operational Rights Preview for this Role:")
+    if selected_role == "Admin":
+        st.markdown("- [x] **📊 View Dashboard & Filter Data**")
+        st.markdown("- [x] **📝 Add New Shipments / Items**")
+        st.markdown("- [x] **🔄 Edit / Update Existing Records & Costing**")
+        st.markdown("- [x] **👥 Full Database Control (Create & Manage User Accounts)**")
+    elif selected_role == "Manager":
+        st.markdown("- [x] **📊 View Dashboard & Filter Data**")
+        st.markdown("- [x] **📝 Add New Shipments / Items**")
+        st.markdown("- [x] **🔄 Edit / Update Existing Records & Costing**")
+        st.markdown("- [ ] ~~Manage User Accounts (Locked)~~")
+    elif selected_role == "Viewer":
+        st.markdown("- [x] **📊 View Dashboard & Filter Data (Read-Only Mode)**")
+        st.markdown("- [ ] ~~Add New Shipments (Locked)~~")
+        st.markdown("- [ ] ~~Edit / Update Records (Locked)~~")
+        st.markdown("- [ ] ~~Manage User Accounts (Locked)~~")
+        
+    st.markdown("---")
+
     with st.form("create_user_form"):
+        st.write("##### 👤 Enter Account Credentials")
         new_user = st.text_input("Username:")
         new_pass = st.text_input("Password:", type="password")
-        new_role = st.selectbox("Role:", ROLES)
-        if st.form_submit_button("Create Account"):
+        
+        if st.form_submit_button("Create Account with Selected Rights"):
             if new_user and new_pass:
                 try:
-                    c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user, new_pass, new_role))
+                    c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user, new_pass, selected_role))
                     conn.commit()
-                    st.success(f"✅ User '{new_user}' created!")
-                except: st.error("Username already exists.")
+                    st.success(f"✅ Account '{new_user}' kamyabi se '{selected_role}' rights ke sath ban gaya!")
+                    st.rerun()
+                except: st.error("Error: Yeh Username pehle se dakhil hai.")
+            else:
+                st.error("Username aur Password dena zaroori hai.")
+                
     st.markdown("---")
-    df_users = pd.read_sql("SELECT id, username, role FROM users", conn)
-    st.dataframe(df_users, use_container_width=True)
+    st.write("##### 📊 User Accounts & Assigned Rights List")
+    
+    # Loading users table and appending dynamic details text
+    df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
+    
+    def map_rights(role):
+        if role == "Admin": return "Full System Control + Account Management"
+        if role == "Manager": return "Can Add & Edit Logistics Data (No User Control)"
+        return "Read-Only Dashboard Access (Viewer)"
+        
+    df_users['Assigned Operations'] = df_users['Role Description'].apply(map_rights)
+    st.dataframe(df_users, use_container_width=True, hide_index=True)
