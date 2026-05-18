@@ -126,10 +126,8 @@ if menu == "📊 Dashboard":
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    try:
-        df = pd.read_sql(query, conn)
-    except:
-        df = pd.read_sql('SELECT * FROM shipments', conn)
+    try: df = pd.read_sql(query, conn)
+    except: df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
         today = datetime.now()
@@ -284,59 +282,51 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Updated!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS (WITH RIGHTS VISUALIZER) ---
+# --- 4. 👥 MANAGE ACCOUNTS (WITH PASSWORD CHANGE & DELETE FEATURES) ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 Accounts Control Center & Rights Settings")
     
-    # 🌟 Real-time Rights Preview Selector (Form se pehle rakha hai taake live update ho)
-    selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES)
+    # Grid system to divide management layout
+    m_col1, m_col2 = st.columns(2)
     
-    # Show explicit checkboxes based on selected role
-    st.write("##### 🛡️ Operational Rights Preview for this Role:")
-    if selected_role == "Admin":
-        st.markdown("- [x] **📊 View Dashboard & Filter Data**")
-        st.markdown("- [x] **📝 Add New Shipments / Items**")
-        st.markdown("- [x] **🔄 Edit / Update Existing Records & Costing**")
-        st.markdown("- [x] **👥 Full Database Control (Create & Manage User Accounts)**")
-    elif selected_role == "Manager":
-        st.markdown("- [x] **📊 View Dashboard & Filter Data**")
-        st.markdown("- [x] **📝 Add New Shipments / Items**")
-        st.markdown("- [x] **🔄 Edit / Update Existing Records & Costing**")
-        st.markdown("- [ ] ~~Manage User Accounts (Locked)~~")
-    elif selected_role == "Viewer":
-        st.markdown("- [x] **📊 View Dashboard & Filter Data (Read-Only Mode)**")
-        st.markdown("- [ ] ~~Add New Shipments (Locked)~~")
-        st.markdown("- [ ] ~~Edit / Update Records (Locked)~~")
-        st.markdown("- [ ] ~~Manage User Accounts (Locked)~~")
+    with m_col1:
+        st.write("##### 👤 Naya Account Banayein")
+        selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES, key="new_role_sel")
         
-    st.markdown("---")
+        with st.form("create_user_form"):
+            new_user = st.text_input("Username:")
+            new_pass = st.text_input("Password:", type="password")
+            if st.form_submit_button("Create Account"):
+                if new_user and new_pass:
+                    try:
+                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user.strip(), new_pass, selected_role))
+                        conn.commit()
+                        st.success(f"✅ User '{new_user}' created!")
+                        st.rerun()
+                    except: st.error("Error: Username pehle se dakhil hai.")
+                else: st.error("Fields bhanna zaroori hain.")
 
-    with st.form("create_user_form"):
-        st.write("##### 👤 Enter Account Credentials")
-        new_user = st.text_input("Username:")
-        new_pass = st.text_input("Password:", type="password")
+    with m_col2:
+        st.write("##### 🔄 Password Badlein ya Account Delete Karein")
+        df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
         
-        if st.form_submit_button("Create Account with Selected Rights"):
-            if new_user and new_pass:
-                try:
-                    c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (new_user, new_pass, selected_role))
-                    conn.commit()
-                    st.success(f"✅ Account '{new_user}' kamyabi se '{selected_role}' rights ke sath ban gaya!")
-                    st.rerun()
-                except: st.error("Error: Yeh Username pehle se dakhil hai.")
-            else:
-                st.error("Username aur Password dena zaroori hai.")
-                
-    st.markdown("---")
-    st.write("##### 📊 User Accounts & Assigned Rights List")
-    
-    # Loading users table and appending dynamic details text
-    df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
-    
-    def map_rights(role):
-        if role == "Admin": return "Full System Control + Account Management"
-        if role == "Manager": return "Can Add & Edit Logistics Data (No User Control)"
-        return "Read-Only Dashboard Access (Viewer)"
-        
-    df_users['Assigned Operations'] = df_users['Role Description'].apply(map_rights)
-    st.dataframe(df_users, use_container_width=True, hide_index=True)
+        if not df_users_list.empty:
+            target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
+            
+            # Form for Password Update
+            with st.form("update_password_form"):
+                new_password_val = st.text_input("Naya Password Likhein:", type="password")
+                if st.form_submit_button("🔒 Password Change Karein"):
+                    if new_password_val:
+                        c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
+                        conn.commit()
+                        st.success(f"✅ '{target_user}' ka password change ho gaya!")
+                    else: st.error("Naya password likhna zaroori hai.")
+            
+            # Action button for Delete Account
+            st.write("---")
+            st.warning(f"⚠️ Kya aap '{target_user}' ka account permanent khatam karna chahte hain?")
+            if st.button("❌ Haan, Account Delete Kardo"):
+                c.execute("DELETE FROM users WHERE username=?", (target_user,))
+                conn.commit()
+                st.success(f"🗑
