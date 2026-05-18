@@ -49,115 +49,131 @@ if "username" not in st.session_state:
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = ""
 
-# --- 🔑 PREMIUM SPLIT LOGIN SCREEN DESIGN ---
+# --- 🔑 HAAMEEM BRANDED LOGIN SCREEN ---
 if not st.session_state["logged_in"]:
-    # Custom CSS Injector for Premium Interface
+    # Custom CSS Injector for Haameem Orange/Gold Elegant Theme
     st.markdown("""
         <style>
-            /* Hide Default Streamlit Elements on Login Page */
+            /* Hide Streamlit Headers */
             [data-testid="stHeader"], [data-testid="stSidebar"] {
                 display: none !important;
             }
             
-            /* Main Login Container Styling */
+            /* Main Wrapper */
             .login-container {
                 display: flex;
                 flex-direction: row;
                 background-color: #ffffff;
-                border-radius: 16px;
-                box-shadow: 0px 10px 30px rgba(0,0,0,0.15);
+                border-radius: 12px;
+                box-shadow: 0px 8px 24px rgba(0,0,0,0.12);
                 overflow: hidden;
                 margin-top: 5%;
-                min-height: 500px;
+                min-height: 480px;
+                border: 1px solid #e2e8f0;
             }
             
-            /* Left Banner (Visual Section) */
+            /* Left Banner - Inspired by Haameem Letterhead Colors */
             .left-banner {
-                background: linear-gradient(135deg, #0d3b66 0%, #001f3f 100%);
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
                 padding: 40px;
                 color: #ffffff;
-                flex: 1.2;
+                flex: 1.1;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 text-align: center;
-                border-right: 4px solid #0056b3;
                 position: relative;
+            }
+            
+            /* Elegant Curve Lines effect like the letterhead */
+            .left-banner::after {
+                content: "";
+                position: absolute;
+                width: 150%;
+                height: 100%;
+                background: rgba(255, 255, 255, 0.06);
+                top: -30%;
+                left: -20%;
+                transform: rotate(-15deg);
+                border-radius: 50%;
             }
             
             .left-banner h1 {
                 color: #ffffff !important;
-                font-family: 'Helvetica Neue', Arial, sans-serif;
-                font-weight: 700;
-                font-size: 2.5rem;
-                margin-bottom: 20px;
-                text-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+                font-family: 'Georgia', serif;
+                font-weight: bold;
+                font-size: 2.3rem;
+                margin-bottom: 15px;
+                letter-spacing: 1px;
             }
             
             .left-banner p {
-                font-size: 1.1rem;
-                opacity: 0.85;
-                max-width: 400px;
-                line-height: 1.6;
+                font-size: 1.05rem;
+                opacity: 0.9;
+                max-width: 360px;
+                line-height: 1.5;
             }
             
-            /* Graphic placeholder icons mimicking ship/shield activity */
-            .graphic-icon {
-                font-size: 5rem;
-                margin-bottom: 15px;
-                animation: pulse 2s infinite;
+            .brand-logo-icon {
+                font-size: 4rem;
+                margin-bottom: 20px;
+                color: #fff3e0;
             }
             
-            /* Right Section (Form Area) */
+            /* Right Section Form Layout Fix */
             .right-form {
                 flex: 1;
-                padding: 50px;
+                padding: 45px;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
-                background-color: #f8f9fa;
+                background-color: #ffffff;
             }
             
-            @keyframes pulse {
-                0% { transform: scale(1); }
-                50% { transform: scale(1.05); }
-                100% { transform: scale(1); }
+            /* Custom Button Styling to match brand */
+            .stButton>button {
+                background-color: #e67e22 !important;
+                color: white !important;
+                border-radius: 6px !important;
+                border: none !important;
+                font-weight: bold !important;
+                padding: 10px 20px !important;
+                transition: all 0.3s ease;
+            }
+            .stButton>button:hover {
+                background-color: #d35400 !important;
+                box-shadow: 0px 4px 12px rgba(230, 126, 34, 0.4);
             }
             
-            /* Tablet/Mobile Compatibility responsiveness */
             @media (max-width: 768px) {
-                .login-container {
-                    flex-direction: column;
-                }
-                .left-banner {
-                    padding: 30px;
-                }
+                .login-container { flex-direction: column; }
             }
         </style>
     """, unsafe_allow_html=True)
     
-    # Grid wrapper layouts
-    w1, w2, w3 = st.columns([1, 10, 1])
+    # Render Layout
+    w1, w2, w3 = st.columns([1, 8, 1])
     with w2:
+        # We split the container div, render inputs perfectly inside the form block, then close the div
         st.markdown("""
             <div class="login-container">
                 <div class="left-banner">
-                    <div class="graphic-icon">🛡️⛴️</div>
-                    <h1>Zafar Logistics ERP</h1>
-                    <p>Professional Master System. Secure Data Integrity, Multi-User Operations Tracking, and Global Trade Management Tools.</p>
+                    <div class="brand-logo-icon">✨📋</div>
+                    <h1>HAAMEEM</h1>
+                    <p>Processing Chemicals & Raw Materials System. Secure Management Portal.</p>
                 </div>
                 <div class="right-form">
-                    <h3 style='color: #0d3b66; font-weight:700; margin-bottom: 5px;'>🔒 Secure Portal Entry</h3>
-                    <p style='color: #6c757d; font-size: 0.9rem; margin-bottom: 25px;'>Authorized Personnel Only. Transactions are monitored.</p>
+                    <h3 style='color: #2c3e50; font-family: Georgia, serif; font-weight:700; margin-bottom: 5px;'>🔒 Secure System Entry</h3>
+                    <p style='color: #7f8c8d; font-size: 0.9rem; margin-bottom: 20px;'>Please enter authorized credentials to access master files.</p>
         """, unsafe_allow_html=True)
         
-        # Streamlit Input Fields Rendered Inside HTML Right Area Block Injection
-        user_input = st.text_input("Username ID:", placeholder="e.g. zafar", key="login_uid")
+        # Inputs fields are now fully contained and organized inside the layout block
+        user_input = st.text_input("Username ID:", placeholder="Enter your username", key="login_uid")
         pass_input = st.text_input("Security Password:", type="password", placeholder="••••••••", key="login_pwd")
         
         st.write("")
-        submit_login = st.button("🚀 Access Secure Dashboard", use_container_width=True)
+        submit_login = st.button("Access Dashboard 🚀", use_container_width=True)
         
         if submit_login:
             c.execute("SELECT role FROM users WHERE username=? AND password=?", (user_input.strip(), pass_input))
@@ -166,12 +182,11 @@ if not st.session_state["logged_in"]:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = user_input.strip()
                 st.session_state["user_role"] = result[0]
-                st.success("Access Granted! Loading system dashboard...")
+                st.success("Access Verified! Loading...")
                 st.rerun()
             else:
-                st.error("Access Denied: Invalid credentials.")
+                st.error("Invalid credentials. Try again.")
                 
-        # Closing div structures safely
         st.markdown("""
                 </div>
             </div>
@@ -179,7 +194,7 @@ if not st.session_state["logged_in"]:
         
     st.stop()
 
-# --- 📊 MASTER APP SECTION (AFTER SUCCESSFUL SIGN-IN) ---
+# --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
 st.sidebar.title(f"👤 User: {st.session_state['username']}")
 st.sidebar.info(f"🛡️ Rights: {st.session_state['user_role']}")
 
@@ -209,26 +224,12 @@ if menu == "📊 Dashboard":
     try:
         query = '''
             SELECT 
-                s.company_name AS [Company Name], 
-                s.bank_name AS [Bank Name], 
-                s.file_no AS [File No],
-                s.indenter AS [Indenter], 
-                s.shipper AS [Supplier Name],
-                i.item_name AS [Item Name],
-                i.brand_name AS [Brand Name], 
-                i.hs_code AS [HS Code],
-                i.qty AS [Quantity],
-                i.unit AS [Unit], 
-                i.unit_price AS [Unit Price],
-                i.actual_costing AS [Actual Costing (PKR)],
-                s.fc_amount AS [Total LC Value], 
-                s.currency AS [Currency], 
-                s.shipment_type AS [Type],
-                s.etd AS [ETD], 
-                s.eta AS [ETA], 
-                s.bl_no AS [BL / LC No], 
-                s.bank_docs AS [Bank Docs], 
-                s.remarks AS [Remarks]
+                s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
+                s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
+                i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
+                i.unit AS [Unit], i.unit_price AS [Unit Price], i.actual_costing AS [Actual Costing (PKR)],
+                s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
+                s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
             FROM shipments s
             LEFT JOIN shipment_items i ON s.file_no = i.file_no
         '''
@@ -253,8 +254,7 @@ if menu == "📊 Dashboard":
         'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
     ]
     for column_check in expected_cols:
-        if column_check not in df.columns:
-            df[column_check] = "-"
+        if column_check not in df.columns: df[column_check] = "-"
 
     if not df.empty:
         today = datetime.now()
@@ -288,13 +288,7 @@ if menu == "📊 Dashboard":
         if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        cols_order = [
-            'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-            'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
-            'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
-            'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
-        ]
-        
+        cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
         df_display.reset_index(drop=True, inplace=True)
@@ -423,8 +417,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 u_price = it_col4.text_input("Price", value=str(ex_price), key=f"u_price_{file_to_update}_{idx}")
                 u_cost = it_col5.text_input("Actual Costing", value=str(ex_cost), key=f"u_cost_{file_to_update}_{idx}")
                 
-                if u_name and u_name.strip() != "": 
-                    updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
+                if u_name and u_name.strip() != "": updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
                     
             st.markdown("---")
             u_etd = u1.text_input("ETD", value=str(etd_val))
@@ -444,7 +437,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
 
 # --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.subheader("👥 Accounts Control Center & Rights Settings")
+    st.subheader("👥 Accounts Control Center")
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.write("##### 👤 Naya Account Banayein")
