@@ -26,20 +26,36 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, password TEXT, role TEXT)''')
     
-    # Auto-create Admin
+    # Auto-create Master Admin Account
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
         conn.commit()
     except:
         pass
 
-    # Ensure all columns exist in SQLite memory
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
-    except: pass
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
-    except: pass
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
-    except: pass
+    # 🌟 PHYSICAL COLUMN INJECTION: Back-end par forcefully check aur column create karne ke liye
+    columns_to_ensure = [
+        ('brand_name', 'TEXT'),
+        ('hs_code', 'TEXT'),
+        ('actual_costing', 'TEXT')
+    ]
+    for col_name, col_type in columns_to_ensure:
+        try:
+            c.execute(f'ALTER TABLE shipment_items ADD COLUMN {col_name} {col_type}')
+        except:
+            pass # Agar column pehle se bana hua hai toh bina chere agay barho
+
+    # Main shipments fallback protection columns
+    fallback_cols = [
+        ('bank_name', 'TEXT'), ('company_name', 'TEXT'), ('currency', 'TEXT'), 
+        ('shipment_type', 'TEXT'), ('items', 'TEXT'), ('weight', 'TEXT'), ('weight_unit', 'TEXT'), ('unit_price', 'TEXT'),
+        ('indenter', 'TEXT'), ('shipper', 'TEXT')
+    ]
+    for col_name, col_type in fallback_cols:
+        try:
+            c.execute(f'ALTER TABLE shipments ADD COLUMN {col_name} {col_type}')
+        except:
+            pass
     conn.commit()
 
 init_db()
@@ -104,14 +120,13 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- 1. DASHBOARD (FIXED DATA RECOVERY LOGIC) ---
+# --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # Robust unified query with standard fallbacks
     query = '''
         SELECT 
-            s.company_name AS [Company Name], 
-            s.bank_name AS [Bank Name], 
-            s.file_no AS [File No],
+            IFNULL(s.company_name, "-") AS [Company Name], 
+            IFNULL(s.bank_name, "-") AS [Bank Name], 
+            IFNULL(s.file_no, "-") AS [File No],
             IFNULL(s.indenter, "-") AS [Indenter], 
             IFNULL(s.shipper, "-") AS [Supplier Name],
             CASE WHEN i.item_name IS NOT NULL AND i.item_name != "" THEN i.item_name ELSE IFNULL(s.items, "-") END AS [Item Name],
@@ -132,14 +147,18 @@ if menu == "📊 Dashboard":
         FROM shipments s
         LEFT JOIN shipment_items i ON s.file_no = i.file_no
     '''
-    df = pd.read_sql(query, conn)
+    try:
+        df = pd.read_sql(query, conn)
+    except:
+        # Ultimate fallback to make sure screen never goes red
+        df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty:
-        # Dynamic Auto Status Engine
+        # Auto Status
         today = datetime.now()
         def get_status(row):
             try:
-                if not row['ETA'] or row['ETA'] == "": return "📄 LC Opened"
+                if 'ETA' not in row or not row['ETA'] or row['ETA'] == "": return "📄 LC Opened"
                 eta = pd.to_datetime(row['ETA'], errors='coerce')
                 etd = pd.to_datetime(row['ETD'], errors='coerce')
                 if pd.notnull(eta) and eta <= today: return "✅ Arrived"
@@ -155,14 +174,12 @@ if menu == "📊 Dashboard":
             st.download_button(label="🟢 Download Data for Excel", data=csv_data, file_name=f"Zafar_Backup_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown("---")
         
-        # Filters configuration
         st.write("### 🔍 Filters")
         f1, f2, f3 = st.columns(3)
         sel_comp = f1.multiselect("Company:", COMPANIES)
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        # Safe dynamic filtering to avoid column collapse
         if 'Company Name' in df.columns and sel_comp: 
             df = df[df['Company Name'].isin(sel_comp)]
         if 'Bank Name' in df.columns and sel_bank: 
@@ -170,7 +187,7 @@ if menu == "📊 Dashboard":
         if search: 
             df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Explicit clean column ordering mapped to display grid
+        # Sequence Columns mapping
         cols_order = [
             'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
             'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
@@ -181,7 +198,6 @@ if menu == "📊 Dashboard":
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
         
-        # Continuous clean serial indexing sequence
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
