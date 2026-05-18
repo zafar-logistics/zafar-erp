@@ -9,6 +9,14 @@ db_path = 'zafar_logistics_v3.db'
 conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
+# Saare columns ki master list jo system mein mojood hain
+ALL_AVAILABLE_COLUMNS = [
+    'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+    'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
+    'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
+    'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+]
+
 def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -24,15 +32,12 @@ def init_db():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   username TEXT UNIQUE, password TEXT, role TEXT)''')
                   
-    # 🌟 NAYA TABLE: Column-level rights save karne ke liye
     c.execute('''CREATE TABLE IF NOT EXISTS user_column_rights 
                  (username TEXT PRIMARY KEY, allowed_columns TEXT)''')
     
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
-        # Admin ke liye default saare columns allow dakhil karna
-        all_cols = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
-        c.execute("INSERT OR IGNORE INTO user_column_rights (username, allowed_columns) VALUES ('zafar', ?)", (json.dumps(all_cols),))
+        c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES ('zafar', ?)", (json.dumps(ALL_AVAILABLE_COLUMNS),))
         conn.commit()
     except:
         pass
@@ -56,13 +61,6 @@ if "username" not in st.session_state:
     st.session_state["username"] = ""
 if "user_role" not in st.session_state:
     st.session_state["user_role"] = ""
-
-ALL_AVAILABLE_COLUMNS = [
-    'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
-    'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
-    'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 
-    'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
-]
 
 # --- GLOBAL ADVANCED STYLING INJECTOR ---
 st.markdown("""
@@ -122,11 +120,12 @@ if not st.session_state["logged_in"]:
         submit_login = st.button("Access Dashboard 🚀", use_container_width=True)
         
         if submit_login:
-            c.execute("SELECT role FROM users WHERE username=? AND password=?", (user_input.strip(), pass_input))
+            u_clean = user_input.strip().lower()
+            c.execute("SELECT role FROM users WHERE username=? AND password=?", (u_clean, pass_input))
             result = c.fetchone()
             if result:
                 st.session_state["logged_in"] = True
-                st.session_state["username"] = user_input.strip()
+                st.session_state["username"] = u_clean
                 st.session_state["user_role"] = result[0]
                 st.success("Access Verified!")
                 st.rerun()
@@ -176,18 +175,21 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- 1. DASHBOARD WITH VARIABLE COLUMN SECURITY ---
+# --- 1. DASHBOARD WITH variable COLUMN SECURITY ---
 if menu == "📊 Dashboard":
     st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
     
-    # 🌟 User ke assigned rights check karna database se
-    c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
-    rights_res = c.fetchone()
-    if rights_res:
-        allowed_display_cols = json.loads(rights_res[0])
+    # 🌟 ZAFAR BHAI LOCK RIGHTS FIX: Agar 'zafar' login hai toh saare columns automatic bypass ho kar khulenge
+    if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
+        allowed_display_cols = ALL_AVAILABLE_COLUMNS
     else:
-        # Fallback agar user ke rights dakhil na hon (Sirf base fields dikhein)
-        allowed_display_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
+        # Baqi operators ke liye database se assigned rights check karein
+        c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
+        rights_res = c.fetchone()
+        if rights_res:
+            allowed_display_cols = json.loads(rights_res[0])
+        else:
+            allowed_display_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
 
     try:
         query = '''
@@ -216,6 +218,11 @@ if menu == "📊 Dashboard":
         }
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
 
+    # Missing database entries protection mapping values to prevent dataframe crashes
+    for col in ALL_AVAILABLE_COLUMNS:
+        if col not in df.columns:
+            df[col] = "-"
+
     if not df.empty:
         today = datetime.now()
         def get_status(row):
@@ -233,7 +240,6 @@ if menu == "📊 Dashboard":
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
             if st.session_state["user_role"] in ["Admin", "Manager"]:
-                # File download mein bhi sirf allowed columns ka data hi jayega security ke liye
                 safe_download_df = df[[c for c in allowed_display_cols if c in df.columns]]
                 csv_data = safe_download_df.to_csv(index=False).encode('utf-8')
                 st.download_button(label="🟢 Download Excel Sheet", data=csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
@@ -256,7 +262,7 @@ if menu == "📊 Dashboard":
         if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # 🌟 GRID PERMISSION FILTER: Sirf wahi columns select honge jo Admin ne allow kiye hain
+        # Permissions structure filter injection sequence mapping
         display_cols = [c for c in allowed_display_cols if c in df.columns]
         df_display = df[display_cols]
         df_display.reset_index(drop=True, inplace=True)
@@ -409,10 +415,9 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 st.success("✅ Records updated successfully!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS (WITH COLUMN RIGHTS CONFIGURATOR) ---
+# --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 System Accounts & Column Security Settings")
-    
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.write("##### 👤 Naya Account Banayein")
@@ -425,7 +430,6 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                     try:
                         u_clean = new_user.strip().lower()
                         c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
-                        # Default hons ke liye saare columns shuru mein allow kardena
                         c.execute("INSERT INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
                         conn.commit()
                         st.success(f"✅ User '{u_clean}' created!")
@@ -451,29 +455,24 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
                 c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
                 conn.commit()
-                st.success(f"🗑| User '{target_user}' deleted!")
+                st.success(f"🗑️ User '{target_user}' deleted!")
                 st.rerun()
         else:
             st.info("Zafar bhai ke ilawa koi aur sub-account nahi bana hua.")
 
     st.markdown("---")
-    
-    # 🌟 NEW BLOCK: COLUMN SECURITY ASSIGNER FOR ADMIN
     st.write("##### 🎛️ Assign Column-Level Visibility Rights")
     df_all_users_raw = pd.read_sql("SELECT username FROM users", conn)
     user_to_configure = st.selectbox("Kis user ke Columns control karne hain?", df_all_users_raw['username'].tolist())
     
-    # User ke current allowed columns fetch karna configuration ke liye
     c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (user_to_configure,))
     current_rights_res = c.fetchone()
     current_allowed = json.loads(current_rights_res[0]) if current_rights_res else ALL_AVAILABLE_COLUMNS
     
     st.markdown(f"**User `{user_to_configure.upper()}` ko dashboard par kaunse columns dikhane hain? Check lagayein:**")
     
-    # Checkboxes ko 4 tameezdar columns mein display karna taake interface saaf rahe
     chk_cols = st.columns(4)
     chosen_columns = []
-    
     for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
         with chk_cols[idx % 4]:
             is_checked = col_name in current_allowed
@@ -486,7 +485,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
         else:
             c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
             conn.commit()
-            st.success(f"✅ `{user_to_configure.upper()}` ke columns ki security save ho gayi! Jab yeh login karega, isay sirf aapke select kiye hue columns hi dikhenge.")
+            st.success(f"✅ `{user_to_configure.upper()}` ke columns ki security save ho gayi!")
 
     st.markdown("---")
     st.write("##### 📊 User Accounts & Assigned Roles List")
