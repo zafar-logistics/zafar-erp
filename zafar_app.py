@@ -52,12 +52,9 @@ if "user_role" not in st.session_state:
 # --- GLOBAL ADVANCED STYLING INJECTOR ---
 st.markdown("""
     <style>
-        /* Modern Clean Backgrounds */
         .stApp {
             background-color: #fafafa;
         }
-        
-        /* Premium Branded Title Section Header Styling */
         .dashboard-header {
             font-family: 'Georgia', serif;
             color: #1a252f;
@@ -68,8 +65,6 @@ st.markdown("""
             margin-bottom: 20px;
             margin-top: -10px;
         }
-        
-        /* Compact Card Wrapper Containers */
         .custom-card {
             background-color: #ffffff;
             padding: 16px 20px;
@@ -78,7 +73,6 @@ st.markdown("""
             border: 1px solid #e2e8f0;
             margin-bottom: 15px;
         }
-        
         .card-title {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             font-size: 1rem;
@@ -89,8 +83,6 @@ st.markdown("""
             align-items: center;
             gap: 6px;
         }
-        
-        /* Custom Styling for Streamlit Native Buttons to map Haameem Theme */
         .stDownloadButton>button {
             background-color: #e67e22 !important;
             color: white !important;
@@ -103,10 +95,6 @@ st.markdown("""
         .stDownloadButton>button:hover {
             background-color: #d35400 !important;
         }
-        
-        /* 🚨 LOGOUT BUTTON HIGH VISIBILITY OVERRIDE */
-        .stSidebar div[element-type="button"] button, 
-        .stSidebar button[key="logout_btn_key"],
         .stSidebar .stButton>button {
             background-color: #c0392b !important;
             color: #ffffff !important;
@@ -188,7 +176,6 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
-# Custom Slate Grey Sidebar Implementation
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
@@ -229,7 +216,6 @@ if st.session_state["user_role"] == "Admin":
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
 st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
-# High Visibility Structural Fix Button Action
 if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True, key="logout_btn_key"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
@@ -294,14 +280,14 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         df['Status'] = df.apply(get_status, axis=1)
 
-        # Main horizontal alignment grid layout
         c_top1, c_top2 = st.columns([2, 5])
         
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
             if st.session_state["user_role"] in ["Admin", "Manager"]:
                 csv_data = df.to_csv(index=False).encode('utf-8')
-                st.download_button(label="🟢 Download Excel Sheet", csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+                # 🌟 FIXED LINE: 'data=' ka keyword parameter lagaya hai error khatam karne ke liye
+                st.download_button(label="🟢 Download Excel Sheet", data=csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             else:
                 st.caption("No backup clearance rights.")
             st.markdown('</div>', unsafe_allow_html=True)
