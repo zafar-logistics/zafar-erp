@@ -73,24 +73,103 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "username" not in st.session_state: st.session_state["username"] = ""
 if "user_role" not in st.session_state: st.session_state["user_role"] = ""
 
-# --- GLOBAL STYLING INJECTOR ---
+# --- 🚀 GLOBAL INTERACTIVE GLASSMORPHIC INTERFACE INJECTOR ---
 st.markdown("""
     <style>
-        .stApp { background-color: #fafafa; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+        
+        .stApp {
+            background-color: #f8fafc;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        
+        /* Dashboard Top Header */
         .dashboard-header {
-            font-family: 'Helvetica Neue', Arial, sans-serif; color: #1a252f; font-size: 1.6rem; font-weight: 700;
-            border-bottom: 2px solid #e67e22; padding-bottom: 6px; margin-bottom: 20px; margin-top: -10px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: #0f172a;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 25px;
+            margin-top: -15px;
         }
+        
+        /* Glassmorphism Summary Cards Layout */
+        .glass-card-wrapper {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            padding: 16px 24px;
+            border-radius: 16px;
+            min-width: 200px;
+            flex: 1;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.02);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .glass-card-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1e293b;
+            line-height: 1;
+        }
+        
+        .glass-card-label {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 500;
+        }
+        
+        /* Modern Container Card Boxes */
         .custom-card {
-            background-color: #ffffff; padding: 16px 20px; border-radius: 8px;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; margin-bottom: 15px;
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0px 4px 20px rgba(0,0,0,0.01);
+            border: 1px solid #f1f5f9;
+            margin-bottom: 20px;
         }
+        
         .card-title {
-            font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 1rem; font-weight: bold;
-            color: #2c3e50; margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 15px;
         }
-        .stDownloadButton>button { background-color: #e67e22 !important; color: white !important; border-radius: 4px !important; border: none !important; font-weight: bold !important; padding: 6px 14px !important; font-size: 0.9rem !important; }
-        .stSidebar .stButton>button { background-color: #c0392b !important; color: #ffffff !important; font-weight: bold !important; border: 1px solid #962d22 !important; border-radius: 6px !important; padding: 8px 12px !important; transition: all 0.2s ease !important; }
+        
+        /* Branded Clean Custom Buttons UI */
+        .stDownloadButton>button {
+            background-color: #ffffff !important;
+            color: #1e293b !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 10px !important;
+            font-weight: 600 !important;
+            padding: 8px 16px !important;
+            box-shadow: 0px 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.2s ease;
+        }
+        .stDownloadButton>button:hover {
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+        }
+        
+        /* Main Grid Dataframe Header Theme Customization */
+        div[data-testid="stDataFrame"] table th {
+            background-color: #f8fafc !important;
+            color: #475569 !important;
+            font-weight: 600 !important;
+            font-size: 0.85rem !important;
+            border-bottom: 1px solid #e2e8f0 !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -106,7 +185,6 @@ if not st.session_state["logged_in"]:
             .right-form { flex: 1; padding: 45px; display: flex; flex-direction: column; justify-content: center; background-color: #ffffff; }
         </style>
     """, unsafe_allow_html=True)
-    
     w1, w2, w3 = st.columns([1, 8, 1])
     with w2:
         st.markdown("""
@@ -186,7 +264,7 @@ def parse_date(date_str):
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-header">Good morning, Haameem Control Center</div>', unsafe_allow_html=True)
     
     if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
         allowed_display_cols = ALL_AVAILABLE_COLUMNS
@@ -221,10 +299,13 @@ if menu == "📊 Dashboard":
     if not df.empty:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        # Lists for side alert notifications
         all_live_alerts = []
+        total_count = len(df['File No'].unique())
+        done_count = 0
+        pending_count = 0
 
         def calculated_status(row):
+            global done_count, pending_count
             f_no = str(row['File No']).strip()
             if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
             
@@ -235,9 +316,10 @@ if menu == "📊 Dashboard":
             if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
                 all_live_alerts.append(f"🚢 File No: {f_no} — AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
-                all_live_alerts.append(f"⚓ File No: {f_no} — MAL PORT PE LAG GAYA HAI!")
+                all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
 
-            if eta_dt and (today - eta_dt).days >= 7: return "Complete"
+            if eta_dt and (today - eta_dt).days >= 7:
+                return "Complete"
             if eta_dt:
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
                 if eta_dt > today + timedelta(days=6): return "Shipment on way"
@@ -248,20 +330,58 @@ if menu == "📊 Dashboard":
             return "LC Opening"
 
         df['Status'] = df.apply(calculated_status, axis=1)
+        
+        # Calculate distinct counts for visual blocks
+        done_count = len(df[df['Status'] == 'Complete']['File No'].unique())
+        arrived_count = len(df[df['Status'] == 'Arrived']['File No'].unique())
+        pending_count = total_count - done_count
 
-        # 🌟 2. LEFT SIDE SIDEBAR ALERT CONFIGURATION (CLICK TO EXPAND)
+        # 🌟 1. PREMIUM GLASSMORPHISM SUMMARY CARDS INJECTOR
+        st.markdown(f"""
+            <div class="glass-card-wrapper">
+                <div class="glass-card" style="border-left: 4px solid #38bdf8;">
+                    <div><span style="font-size:20px;">📁</span></div>
+                    <div>
+                        <div class="glass-card-value">{total_count}</div>
+                        <div class="glass-card-label">Total Files</div>
+                    </div>
+                </div>
+                <div class="glass-card" style="border-left: 4px solid #4ade80;">
+                    <div><span style="font-size:20px;">✅</span></div>
+                    <div>
+                        <div class="glass-card-value">{done_count}</div>
+                        <div class="glass-card-label">Done Projects</div>
+                    </div>
+                </div>
+                <div class="glass-card" style="border-left: 4px solid #fb923c;">
+                    <div><span style="font-size:20px;">⏳</span></div>
+                    <div>
+                        <div class="glass-card-value">{pending_count}</div>
+                        <div class="glass-card-label">Pending Files</div>
+                    </div>
+                </div>
+                <div class="glass-card" style="border-left: 4px solid #a78bfa;">
+                    <div><span style="font-size:20px;">⚓</span></div>
+                    <div>
+                        <div class="glass-card-value">{arrived_count}</div>
+                        <div class="glass-card-label">Port Arrived</div>
+                    </div>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # 🌟 2. SIDEBAR ALERTS BLOCK (CLEAN & MINIMAL)
         if all_live_alerts:
-            with st.sidebar.expander("🔔 LIVE NOTIFICATIONS", expanded=True):
+            with st.sidebar.expander("🔔 SYSTEM LIVE ALERTS", expanded=True):
                 for alert_msg in set(all_live_alerts):
-                    st.warning(alert_msg)
+                    st.info(alert_msg)
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
-            st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
             safe_download_df = df[safe_display_cols_clean]
-            # 🌟 NAME FIX: Arguments correct order mapped to resolve Python positional syntax error
-            st.download_button(label="🟢 Download Excel Sheet", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            st.download_button(label="📥 Export Master Sheet to Excel", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown('</div>', unsafe_allow_html=True)
             
         with c_top2:
@@ -269,7 +389,7 @@ if menu == "📊 Dashboard":
             f1, f2, f3 = st.columns(3)
             sel_comp = f1.multiselect("Import Entity:", COMPANIES)
             sel_bank = f2.multiselect("Opening Bank:", BANKS)
-            search = f3.text_input("Global Search Keywords:", placeholder="Type to filter data...")
+            search = f3.text_input("Global Search Keywords:", placeholder="Type to filter...")
             st.markdown('</div>', unsafe_allow_html=True)
 
         if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
@@ -282,15 +402,16 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        # 🌟 5. RE-DESIGNED SOPHISTICATED MODERN PROFESSIONAL TABLE COLOR PALETTE
+        # 🌟 5. EXTREMELY CLEAN GLASS-STYLE DYNAMIC COLOR CODES PER CELL/ROW
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                if row['Status'] == 'Arrived': color = 'background-color: #d1e7dd; color: #0f5132; font-weight: bold;' # Perfect Executive Soft Green
-                elif row['Status'] == 'Complete': color = 'background-color: #f8f9fa; color: #6c757d; opacity: 0.8;' # Soft Muted Archive Gray
-                elif row['Status'] == 'Query': color = 'background-color: #f8d7da; color: #842029; font-weight: bold;' # Warning Soft Red
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fff3cd; color: #664d03;' # Attention Soft Gold/Yellow
-                elif row['Status'] == 'Shipped': color = 'background-color: #cff4fc; color: #055160;' # Blue Transit
+                # Minimalist Soft Colors Matching the User's Image Layout
+                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;' # Soft Emerald Mint
+                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;' # Gray Outline Archival
+                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;' # Crimson Rose Line
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;' # Soft Lavender Amber Tint
+                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;' # Sky Blue
             return [color] * len(row)
 
         try:
@@ -412,4 +533,110 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             
             for idx in range(3):
                 st.write(f"**Item Row #{idx+1}:**")
-                it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5
+                it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
+                
+                ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
+                if idx < len(df_ex_items):
+                    item_row = df_ex_items.iloc[idx]
+                    ex_name = get_val(item_row, ['item_name', 'ITEM_NAME'])
+                    ex_brand = get_val(item_row, ['brand_name', 'BRAND_NAME'])
+                    ex_hs = get_val(item_row, ['hs_code', 'HS_CODE'])
+                    ex_qty = get_val(item_row, ['qty', 'QTY'])
+                    ex_unit = get_val(item_row, ['unit', 'UNIT'], "KG")
+                    ex_price = get_val(item_row, ['unit_price', 'UNIT_PRICE'])
+                    ex_cost = get_val(item_row, ['actual_costing', 'ACTUAL_COSTING'])
+                
+                u_name = it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
+                u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
+                
+                hs_suggestions = get_hs_codes_for_item(u_name) if u_name else []
+                if hs_suggestions:
+                    u_hs = it_col_hs.selectbox("HS Code", hs_suggestions, index=hs_suggestions.index(ex_hs) if ex_hs in hs_suggestions else 0, key=f"u_hs_drop_{file_to_update}_{idx}")
+                else:
+                    u_hs = it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_txt_{file_to_update}_{idx}")
+                    
+                u_qty = it_col2.text_input("Qty", value=str(ex_qty), key=f"u_qty_{file_to_update}_{idx}")
+                u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
+                u_price = it_col4.text_input("Price", value=str(ex_price), key=f"u_price_{file_to_update}_{idx}")
+                u_cost = it_col5.text_input("Actual Costing", value=str(ex_cost), key=f"u_cost_{file_to_update}_{idx}")
+                
+                if u_name and u_name.strip() != "": updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
+                    
+            st.markdown("---")
+            u_etd = u1.text_input("ETD", value=str(etd_val))
+            u_eta = u2.text_input("ETA", value=str(eta_val))
+            u_bl = u1.text_input("BL/LC No", value=str(bl_val))
+            u_docs = u2.selectbox("Bank Docs", ["Pending", "OK"], index=0 if docs_val == "Pending" else 1)
+            u_remarks = st.text_area("Remarks", value=str(rem_val))
+            
+            if st.form_submit_button("💾 Update Master Records"):
+                c.execute('''UPDATE shipments SET company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?''', (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
+                c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
+                for item in updated_items:
+                    c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
+                conn.commit()
+                st.success("✅ Records updated successfully!")
+                st.rerun()
+
+# --- 5. MANAGE ACCOUNTS PANEL ---
+elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
+    st.subheader("👥 System Accounts & Column Security Settings")
+    m_col1, m_col2 = st.columns(2)
+    with m_col1:
+        st.write("##### 👤 Naya Account Banayein")
+        selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES, key="new_role_sel")
+        with st.form("create_user_form"):
+            new_user = st.text_input("Username:")
+            new_pass = st.text_input("Password:", type="password")
+            if st.form_submit_button("Create Account"):
+                if new_user and new_pass:
+                    try:
+                        u_clean = new_user.strip().lower()
+                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
+                        c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
+                        conn.commit()
+                        st.success(f"✅ User '{u_clean}' created!")
+                        st.rerun()
+                    except: st.error("Error: Username pehle se dakhil hai.")
+                else: st.error("Fields bhanna zaroori hain.")
+
+    with m_col2:
+        st.write("##### 🔄 Password Badlein ya Account Delete Karein")
+        df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
+        if not df_users_list.empty:
+            target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
+            with st.form("update_password_form"):
+                new_password_val = st.text_input("Naya Password Likhein:", type="password")
+                if st.form_submit_button("🔒 Password Change Karein"):
+                    if new_password_val:
+                        c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
+                        conn.commit()
+                        st.success(f"✅ Password changed!")
+                    else: st.error("Field empty.")
+            if st.button("❌ Haan, Account Delete Kardo"):
+                c.execute("DELETE FROM users WHERE username=?", (target_user,))
+                c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
+                conn.commit(); st.rerun()
+
+    st.markdown("---")
+    st.write("##### 🎛️ Assign Column-Level Visibility Rights")
+    df_all_users_raw = pd.read_sql("SELECT username FROM users", conn)
+    user_to_configure = st.selectbox("Kis user ke Columns control karne hain?", df_all_users_raw['username'].tolist())
+    
+    c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (user_to_configure,))
+    current_rights_res = c.fetchone()
+    current_allowed = json.loads(current_rights_res[0]) if current_rights_res else ALL_AVAILABLE_COLUMNS
+    
+    chk_cols = st.columns(4)
+    chosen_columns = []
+    for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
+        with chk_cols[idx % 4]:
+            is_checked = col_name in current_allowed
+            if st.checkbox(col_name, value=is_checked, key=f"chk_{user_to_configure}_{col_name}"):
+                chosen_columns.append(col_name)
+                
+    if st.button("🔒 Column Permissions Save Karein", use_container_width=True):
+        if not chosen_columns: st.error("Kam az kam aik column allow karna zaroori hai!")
+        else:
+            c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
+            conn.commit(); st.success("Stored successfully!")
