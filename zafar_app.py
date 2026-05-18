@@ -226,8 +226,8 @@ if menu == "📊 Dashboard":
     if not df.empty:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
-        today_etd_alerts = []
-        arrived_eta_alerts = []
+        # Alerts collection list
+        all_live_alerts = []
 
         def calculated_status(row):
             f_no = str(row['File No']).strip()
@@ -237,10 +237,11 @@ if menu == "📊 Dashboard":
             text_eta = row.get('ETA', '-') if 'ETA' in row else '-'
             eta_dt = parse_date(text_eta)
             
+            # Alerts tracking conditions
             if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
-                today_etd_alerts.append(f"File No: {f_no} ({row.get('Item Name', '-')}) AAJ CHALEGA!")
+                all_live_alerts.append(f"🚢 File No: {f_no} ({row.get('Item Name', '-')}) AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
-                arrived_eta_alerts.append(f"File No: {f_no} MAL PORT PE LAG GAYA HAI!")
+                all_live_alerts.append(f"⚓ File No: {f_no} MAL PORT PE LAG GAYA HAI!")
 
             if eta_dt and (today - eta_dt).days >= 7: return "Complete"
             
@@ -256,15 +257,10 @@ if menu == "📊 Dashboard":
 
         df['Status'] = df.apply(calculated_status, axis=1)
 
-        # 🌟 1 & 2. DISMISSABLE PROFESSIONAL ALERTS SYSTEM (FIXED RED BOXES)
-        if today_etd_alerts:
-            for alert in set(today_etd_alerts): 
-                # Floating Toast Alert: Kuch seconds baad khud ba khud gaayab ho jayega
-                st.toast(f"🚀 {alert}")
-        if arrived_eta_alerts:
-            for alert in set(arrived_eta_alerts): 
-                # st.info with icon: User isay right side ke 'X' par click karke khud gaayab kar sakta hai
-                st.info(f"⚓ {alert}", icon="ℹ️")
+        # 🌟 FLOATING TOAST NOTIFICATIONS (🚨 FIXED: 10 se zyada hon tab bhi smooth stacked aaein ge aur auto-hide hon ge)
+        if all_live_alerts:
+            for alert_msg in set(all_live_alerts): 
+                st.toast(alert_msg)
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
