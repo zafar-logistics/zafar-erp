@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # --- DATABASE SETUP ---
 db_path = 'zafar_logistics_v3.db'
 conn = sqlite3.connect(db_path, check_same_thread=False)
 c = conn.cursor()
 
-# Saare columns ki master list jo system mein mojood hain
 ALL_AVAILABLE_COLUMNS = [
     'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
     'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
@@ -52,17 +51,29 @@ def init_db():
 
 init_db()
 
+# --- HELPER FUNCTIONS FOR AUTO-SUGGEST & HS CODE ---
+def get_distinct_values(column_name, table_name="shipments"):
+    try:
+        c.execute(f"SELECT DISTINCT {column_name} FROM {table_name} WHERE {column_name} IS NOT NULL AND {column_name} != '' AND {column_name} != '-'")
+        return [r[0] for r in c.fetchall()]
+    except:
+        return []
+
+def get_hs_codes_for_item(item_name):
+    try:
+        c.execute("SELECT DISTINCT hs_code FROM shipment_items WHERE item_name=? AND hs_code IS NOT NULL AND hs_code != '' AND hs_code != '-'", (item_name,))
+        return [r[0] for r in c.fetchall()]
+    except:
+        return []
+
 # --- INTERFACE SETUP ---
 st.set_page_config(page_title="Zafar Logistics ERP", layout="wide")
 
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-if "username" not in st.session_state:
-    st.session_state["username"] = ""
-if "user_role" not in st.session_state:
-    st.session_state["user_role"] = ""
+if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
+if "username" not in st.session_state: st.session_state["username"] = ""
+if "user_role" not in st.session_state: st.session_state["user_role"] = ""
 
-# --- GLOBAL ADVANCED STYLING INJECTOR ---
+# --- GLOBAL STYLING INJECTOR ---
 st.markdown("""
     <style>
         .stApp { background-color: #fafafa; }
@@ -91,10 +102,8 @@ if not st.session_state["logged_in"]:
             [data-testid="stHeader"], [data-testid="stSidebar"] { display: none !important; }
             .login-container { display: flex; flex-direction: row; background-color: #ffffff; border-radius: 12px; box-shadow: 0px 8px 24px rgba(0,0,0,0.12); overflow: hidden; margin-top: 5%; min-height: 480px; border: 1px solid #e2e8f0; }
             .left-banner { background: linear-gradient(135deg, #e67e22 0%, #d35400 100%); padding: 40px; color: #ffffff; flex: 1.1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; }
-            .left-banner::after { content: ""; position: absolute; width: 150%; height: 100%; background: rgba(255, 255, 255, 0.06); top: -30%; left: -20%; transform: rotate(-15deg); border-radius: 50%; }
             .left-banner h1 { color: #ffffff !important; font-family: 'Georgia', serif; font-weight: bold; font-size: 2.3rem; margin-bottom: 15px; letter-spacing: 1px; }
             .left-banner p { font-size: 1.05rem; opacity: 0.9; max-width: 360px; line-height: 1.5; }
-            .brand-logo-icon { font-size: 4rem; margin-bottom: 20px; color: #fff3e0; }
             .right-form { flex: 1; padding: 45px; display: flex; flex-direction: column; justify-content: center; background-color: #ffffff; }
         </style>
     """, unsafe_allow_html=True)
@@ -112,14 +121,9 @@ if not st.session_state["logged_in"]:
                     <h3 style='color: #2c3e50; font-family: Georgia, serif; font-weight:700; margin-bottom: 5px;'>🔒 Secure System Entry</h3>
                     <p style='color: #7f8c8d; font-size: 0.9rem; margin-bottom: 20px;'>Please enter authorized credentials to access master files.</p>
         """, unsafe_allow_html=True)
-        
         user_input = st.text_input("Username ID:", placeholder="Enter your username", key="login_uid")
         pass_input = st.text_input("Security Password:", type="password", placeholder="••••••••", key="login_pwd")
-        
-        st.write("")
-        submit_login = st.button("Access Dashboard 🚀", use_container_width=True)
-        
-        if submit_login:
+        if st.button("Access Dashboard 🚀", use_container_width=True):
             u_clean = user_input.strip().lower()
             c.execute("SELECT role FROM users WHERE username=? AND password=?", (u_clean, pass_input))
             result = c.fetchone()
@@ -127,47 +131,47 @@ if not st.session_state["logged_in"]:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = u_clean
                 st.session_state["user_role"] = result[0]
-                st.success("Access Verified!")
                 st.rerun()
-            else:
-                st.error("Invalid credentials. Try again.")
-                
-        st.markdown("""
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+            else: st.error("Invalid credentials.")
+        st.markdown("</div></div>", unsafe_allow_html=True)
     st.stop()
 
 # --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
-st.markdown("""
-    <style>
-        [data-testid="stSidebar"] { background-color: #243242 !important; color: #ffffff !important; }
-        [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] span { color: #ffffff !important; }
-        .stRadio>div{ gap: 6px; }
-        div[data-testid="stRadio"] label { background-color: #2c3d52; padding: 6px 12px; border-radius: 4px; border: 1px solid #344963; transition: all 0.2s ease; }
-        div[data-testid="stRadio"] label:hover { background-color: #e67e22; cursor: pointer; }
-    </style>
-""", unsafe_allow_html=True)
-
 st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-bottom:0px;'>👤 {st.session_state['username'].upper()}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
-available_options = ["📊 Dashboard"]
-if st.session_state["user_role"] in ["Admin", "Manager"]:
-    available_options.append("📝 Nayi Entry (Add)")
-    available_options.append("🔄 Update / Edit")
-if st.session_state["user_role"] == "Admin":
-    available_options.append("👥 Manage Users / Accounts")
-
+available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
+if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
-if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True, key="logout_btn_key"):
-    st.session_state["logged_in"] = False
-    st.session_state["username"] = ""
-    st.session_state["user_role"] = ""
-    st.rerun()
+# --- 📈 6. SIDEBAR GRAPH HISTORY FEATURE ---
+st.sidebar.markdown("---")
+st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
+all_items_saved = get_distinct_values("item_name", "shipment_items")
+if all_items_saved:
+    selected_graph_item = st.sidebar.selectbox("Select Item for Trend Line:", ["-- Select Item --"] + all_items_saved)
+    if selected_graph_item != "-- Select Item --":
+        graph_query = f"""
+            SELECT s.file_no, i.unit_price, i.actual_costing 
+            FROM shipment_items i 
+            JOIN shipments s ON i.file_no = s.file_no 
+            WHERE i.item_name='{selected_graph_item}'
+        """
+        df_graph = pd.read_sql(graph_query, conn)
+        if not df_graph.empty:
+            df_graph['Unit Price'] = pd.to_numeric(df_graph['unit_price'], errors='coerce')
+            df_graph['Actual Costing (PKR)'] = pd.to_numeric(df_graph['actual_costing'], errors='coerce')
+            df_graph = df_graph.dropna(subset=['Unit Price']).reset_index(drop=True)
+            
+            if not df_graph.empty:
+                st.sidebar.line_chart(df_graph[['Unit Price', 'Actual Costing (PKR)']])
+            else: st.sidebar.caption("No numeric price data available for graph.")
+else: st.sidebar.caption("No items in system database.")
+
+st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
+if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
+    st.session_state["logged_in"] = False; st.rerun()
 
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
@@ -175,76 +179,96 @@ CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
-# --- 1. DASHBOARD WITH variable COLUMN SECURITY ---
+# --- Helper to parse date strings safely to datetime objects ---
+def parse_date(date_str):
+    if not date_str or date_str in ["", "-", "Pending", None]: return None
+    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
+        try: return datetime.strptime(date_str.strip(), fmt)
+        except: pass
+    return None
+
+# --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
     st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
     
-    # 🌟 ZAFAR BHAI LOCK RIGHTS FIX: Agar 'zafar' login hai toh saare columns automatic bypass ho kar khulenge
     if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
         allowed_display_cols = ALL_AVAILABLE_COLUMNS
     else:
-        # Baqi operators ke liye database se assigned rights check karein
         c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
         rights_res = c.fetchone()
-        if rights_res:
-            allowed_display_cols = json.loads(rights_res[0])
-        else:
-            allowed_display_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
+        allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
 
-    try:
-        query = '''
-            SELECT 
-                s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
-                s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
-                i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
-                i.unit AS [Unit], i.unit_price AS [Unit Price], i.actual_costing AS [Actual Costing (PKR)],
-                s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
-                s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
-            FROM shipments s
-            LEFT JOIN shipment_items i ON s.file_no = i.file_no
-        '''
-        df = pd.read_sql(query, conn)
-    except:
-        df = pd.read_sql('SELECT * FROM shipments', conn)
+    query = '''
+        SELECT 
+            s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
+            s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
+            i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
+            i.unit AS [Unit], i.unit_price AS [Unit Price], i.actual_costing AS [Actual Costing (PKR)],
+            s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
+            s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
+        FROM shipments s
+        LEFT JOIN shipment_items i ON s.file_no = i.file_no
+    '''
+    df = pd.read_sql(query, conn)
 
     if not df.empty and 'Company Name' not in df.columns:
-        cols_map = {
-            'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No',
-            'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name',
-            'brand_name': 'Brand Name', 'hs_code': 'HS Code', 'weight': 'Quantity',
-            'weight_unit': 'Unit', 'unit_price': 'Unit Price', 'actual_costing': 'Actual Costing (PKR)',
-            'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type',
-            'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'
-        }
+        cols_map = {'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No', 'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name', 'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type', 'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'}
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
 
-    # Missing database entries protection mapping values to prevent dataframe crashes
     for col in ALL_AVAILABLE_COLUMNS:
-        if col not in df.columns:
-            df[col] = "-"
+        if col not in df.columns: df[col] = "-"
 
     if not df.empty:
-        today = datetime.now()
-        def get_status(row):
-            try:
-                if 'ETA' not in row or not row['ETA'] or row['ETA'] in ["", "-", None]: return "📄 LC Opened"
-                eta = pd.to_datetime(row['ETA'], errors='coerce')
-                etd = pd.to_datetime(row['ETD'], errors='coerce')
-                if pd.notnull(eta) and eta <= today: return "✅ Arrived"
-                if pd.notnull(etd) and etd <= today: return "🚢 In Transit"
-                return "📄 LC Opened"
-            except: return "Pending"
-        df['Status'] = df.apply(get_status, axis=1)
+        # 🌟 1. ADVANCED DYNAMIC STATUS ENGINE LOGIC
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Lists to store alerts messages for requirement #2
+        today_etd_alerts = []
+        arrived_eta_alerts = []
+
+        def calculated_status(row):
+            f_no = str(row['File No']).strip()
+            # a) File Empty -> Query
+            if f_no == "" or f_no == "-" or pd.isna(row['File No']): return "Query"
+            
+            etd_dt = parse_date(row['ETD'])
+            eta_dt = parse_date(row['ETA'])
+            
+            # 🔔 2. Live Notifications Logic Collector
+            if etd_dt and etd_dt.date() == today.date():
+                today_etd_alerts.append(f"File No: {f_no} ({row['Item Name']}) AAJ CHALEGA!")
+            if eta_dt and eta_dt.date() <= today.date() and (today - eta_dt).days <= 6:
+                arrived_eta_alerts.append(f"File No: {f_no} MAL PORT PE LAG GAYA HAI!")
+
+            # e) ETA current date se 7 din agae chali gae ho -> Complete
+            if eta_dt and (today - eta_dt).days >= 7: return "Complete"
+            
+            # d) ETA forward date or within 6 days from current -> Arrived / Shipment on way
+            if eta_dt:
+                if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
+                if eta_dt > today + timedelta(days=6): return "Shipment on way"
+            
+            # c) ETD checks when ETA is missing
+            if etd_dt:
+                if etd_dt > today: return "Shipment not shipped"
+                if etd_dt <= today: return "Shipped"
+                
+            # b) File No text exist but no date -> LC Opening
+            return "LC Opening"
+
+        df['Status'] = df.apply(calculated_status, axis=1)
+
+        # 🔔 2. DISPLAY REAL-TIME POPUP ALERTS ON SCREEN
+        if today_etd_alerts:
+            for alert in set(today_etd_alerts): st.toast(f"🚢 {alert}", icon="🚀")
+        if arrived_eta_alerts:
+            for alert in set(arrived_eta_alerts): st.error(f"⚓ {alert}")
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
-            if st.session_state["user_role"] in ["Admin", "Manager"]:
-                safe_download_df = df[[c for c in allowed_display_cols if c in df.columns]]
-                csv_data = safe_download_df.to_csv(index=False).encode('utf-8')
-                st.download_button(label="🟢 Download Excel Sheet", data=csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
-            else:
-                st.caption("No backup clearance rights.")
+            safe_download_df = df[[c for c in allowed_display_cols if c in df.columns]]
+            st.download_button(label="🟢 Download Excel Sheet", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown('</div>', unsafe_allow_html=True)
             
         with c_top2:
@@ -255,43 +279,54 @@ if menu == "📊 Dashboard":
             search = f3.text_input("Global Search Keywords:", placeholder="Type to filter data...")
             st.markdown('</div>', unsafe_allow_html=True)
 
-        comp_col = 'Company Name' if 'Company Name' in df.columns else ('company_name' if 'company_name' in df.columns else '')
-        bank_col = 'Bank Name' if 'Bank Name' in df.columns else ('bank_name' if 'bank_name' in df.columns else '')
-
-        if comp_col and sel_comp: df = df[df[comp_col].isin(sel_comp)]
-        if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
+        if sel_comp: df = df[df['Company Name'].isin(sel_comp)]
+        if sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Permissions structure filter injection sequence mapping
         display_cols = [c for c in allowed_display_cols if c in df.columns]
         df_display = df[display_cols]
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        st.markdown("""
-            <style>
-                div[data-testid="stDataFrame"] table th { background-color: #243242 !important; color: #ffffff !important; font-weight: bold !important; font-size: 0.9rem !important; text-align: center !important; }
-                div[data-testid="stDataFrame"] table td { font-size: 0.85rem !important; }
-            </style>
-        """, unsafe_allow_html=True)
+        # 🌟 5. ADVANCED ROW PER-STATUS COLORING FORMATTER
+        def style_rows(row):
+            color = ''
+            if 'Status' in row.index:
+                if row['Status'] == 'Arrived': color = 'background-color: #d4edda; color: #155724; font-weight: 500;' # Soft Pastel Green
+                elif row['Status'] == 'Complete': color = 'background-color: #e2e3e5; color: #383d41; text-decoration: line-through;' # Soft Muted Slate
+                elif row['Status'] == 'Query': color = 'background-color: #f8d7da; color: #721c24;' # Soft Red Warning
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fff3cd; color: #856404;' # Golden Yellow
+            return [color] * len(row)
 
-        st.dataframe(df_display.fillna("-"), use_container_width=True, hide_index=False)
-    else:
-        st.info("System mein koi data majood nahi hai.")
+        try:
+            # Applying dynamic row background styling colors securely on grid data mapping
+            styled_df = df_display.style.apply(style_rows, axis=1)
+            st.dataframe(styled_df, use_container_width=True, hide_index=False)
+        except:
+            st.dataframe(df_display, use_container_width=True, hide_index=False)
+    else: st.info("System mein koi data majood nahi hai.")
 
-# --- 2. NAYI ENTRY ---
+# --- 2. NAYI ENTRY (WITH DROPDOWN AUTO-SUGGEST & HS CODE INTEGRATION) ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("📝 Nayi Shipment Records Entry Portal")
+    
+    # Fetching historical values for Auto-Suggest Lists (Requirement #3)
+    past_suppliers = get_distinct_values("shipper")
+    past_indenters = get_distinct_values("indenter")
+    past_items = get_distinct_values("item_name", "shipment_items")
+
     with st.form("add_form", clear_on_submit=True):
         col_top1, col_top2 = st.columns(2)
         company_name = col_top1.selectbox("Company Name", COMPANIES)
         bank_name = col_top2.selectbox("Bank Name", BANKS)
         
         c1, c2, c3, c4 = st.columns(4)
-        indenter = c1.text_input("Indenter")
+        
+        # 🌟 3. Dropdown Auto-Suggest Implementation for Indenter and Supplier
+        indenter = c1.selectbox("Indenter Name", [""] + past_indenters if past_indenters else [""]) if past_indenters else c1.text_input("Indenter")
         file_no = c2.text_input("File No (Unique)")
-        shipper = c3.text_input("Shipper")
+        shipper = c3.selectbox("Supplier Name (Shipper)", [""] + past_suppliers if past_suppliers else [""]) if past_suppliers else c3.text_input("Shipper")
         pi_no = c4.text_input("P.I. No")
         
         am1, am2, am3 = st.columns([2, 1, 1])
@@ -300,23 +335,34 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         ship_type = am3.selectbox("Type", ["FCL", "LCL"])
         
         st.markdown("---")
-        st.markdown("##### 🛒 Items Breakdown")
+        st.markdown("##### 🛒 Items Breakdown (Autocompletes Historic HS Codes)")
+        
         items_inputs = []
-        for i in range(1, 5):
+        for i in range(1, 4):
             st.write(f"**Item #{i}:**")
             it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
-            name = it1.text_input("Item Name", key=f"add_name_{i}")
+            
+            # 🌟 3. Item Name Dropdown List Auto-Suggest
+            name = it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
             brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
-            hs_code = it_hs.text_input("HS Code", key=f"add_hs_{i}")
+            
+            # 🌟 4. Automatic HS Code Lookup Mapping Detection Logic
+            hs_suggestions = get_hs_codes_for_item(name) if name else []
+            if hs_suggestions:
+                hs_code = it_hs.selectbox("HS Code (Historic Detected)", hs_suggestions, key=f"add_hs_drop_{i}")
+            else:
+                hs_code = it_hs.text_input("HS Code", key=f"add_hs_text_{i}")
+                
             qty = it2.text_input("Qty", key=f"add_qty_{i}")
             unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
             price = it4.text_input("Unit Price", key=f"add_price_{i}")
             costing = it5.text_input("Actual Costing", key=f"add_cost_{i}")
+            
             if name: items_inputs.append((name, brand, hs_code, qty, unit, price, costing))
                 
         st.markdown("---")
         d1, d2, d3, d4 = st.columns(4)
-        etd = d1.text_input("ETD")
+        etd = d1.text_input("ETD (e.g. 30-May-2026)")
         eta = d2.text_input("ETA")
         bl_no = d3.text_input("BL / LC No")
         bank_docs = d4.selectbox("Bank Docs", ["Pending", "OK"])
@@ -326,18 +372,19 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
             if not file_no: st.error("File No likhna zaroori hai!")
             else:
                 try:
-                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
+                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, str(indenter), file_no, str(shipper), pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
                     for item in items_inputs:
-                        c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
+                        c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
                     conn.commit()
-                    st.success("✅ New shipment recorded successfully!")
+                    st.success("✅ Shipment recorded securely!")
                     st.rerun()
-                except: st.error("Error: Save nahi ho saka.")
+                except Exception as e: st.error(f"Error: Save nahi ho saka. Details: {e}")
 
-# --- 3. UPDATE / EDIT ---
+# --- 3. UPDATE / EDIT (WITH AUTOMATED FIELD VERIFICATION) ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
     st.subheader("🔄 Update Master Logs & Costing Data")
     df_raw = pd.read_sql('SELECT * FROM shipments', conn)
+    past_items = get_distinct_values("item_name", "shipment_items")
     
     if not df_raw.empty:
         file_to_update = st.selectbox("Select File No to Update:", df_raw['file_no'].tolist())
@@ -360,7 +407,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             type_val = get_val(row, ['shipment_type', 'SHIPMENT_TYPE'])
             etd_val = get_val(row, ['etd', 'ETD'])
             eta_val = get_val(row, ['eta', 'ETA'])
-            bl_val = get_val(row, ['bl_no', 'BL_NO'])
+            bl_val = get_val(row, ['bl_no', 'BL__LC_NO', 'bl_no'])
             docs_val = get_val(row, ['bank_docs', 'BANK_DOCS'])
             rem_val = get_val(row, ['remarks', 'REMARKS'])
 
@@ -375,9 +422,11 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             st.markdown("---")
             st.markdown("##### 🛒 Edit Items, Brand & Add Actual Costing Here")
             updated_items = []
-            for idx in range(4):
+            
+            for idx in range(3):
                 st.write(f"**Item Row #{idx+1}:**")
                 it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
+                
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
                     item_row = df_ex_items.iloc[idx]
@@ -389,9 +438,16 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                     ex_price = get_val(item_row, ['unit_price', 'UNIT_PRICE'])
                     ex_cost = get_val(item_row, ['actual_costing', 'ACTUAL_COSTING'])
                 
-                u_name = it_col1.text_input("Item Name", value=str(ex_name), key=f"u_name_{file_to_update}_{idx}")
+                u_name = it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
                 u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
-                u_hs = it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_{file_to_update}_{idx}")
+                
+                # Dynamic auto-complete mapping configuration during editing data logs update
+                hs_suggestions = get_hs_codes_for_item(u_name) if u_name else []
+                if hs_suggestions:
+                    u_hs = it_col_hs.selectbox("HS Code", hs_suggestions, index=hs_suggestions.index(ex_hs) if ex_hs in hs_suggestions else 0, key=f"u_hs_drop_{file_to_update}_{idx}")
+                else:
+                    u_hs = it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_txt_{file_to_update}_{idx}")
+                    
                 u_qty = it_col2.text_input("Qty", value=str(ex_qty), key=f"u_qty_{file_to_update}_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
                 u_price = it_col4.text_input("Price", value=str(ex_price), key=f"u_price_{file_to_update}_{idx}")
@@ -410,12 +466,12 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 c.execute('''UPDATE shipments SET company_name=?, bank_name=?, indenter=?, shipper=?, fc_amount=?, currency=?, shipment_type=?, etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?''', (u_comp, u_bank, u_indenter, u_shipper, u_amount, u_curr, u_type, u_etd, u_eta, u_bl, u_docs, u_remarks, file_to_update))
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
-                    c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
+                    c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
                 conn.commit()
                 st.success("✅ Records updated successfully!")
                 st.rerun()
 
-# --- 4. 👥 MANAGE ACCOUNTS ---
+# --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 System Accounts & Column Security Settings")
     m_col1, m_col2 = st.columns(2)
@@ -430,7 +486,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                     try:
                         u_clean = new_user.strip().lower()
                         c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
-                        c.execute("INSERT INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
+                        c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
                         conn.commit()
                         st.success(f"✅ User '{u_clean}' created!")
                         st.rerun()
@@ -448,17 +504,12 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                     if new_password_val:
                         c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
                         conn.commit()
-                        st.success(f"✅ '{target_user}' ka password change ho gaya!")
-                    else: st.error("Naya password likhna zaroori hai.")
-            st.write("---")
+                        st.success(f"✅ Password changed!")
+                    else: st.error("Field empty.")
             if st.button("❌ Haan, Account Delete Kardo"):
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
                 c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
-                conn.commit()
-                st.success(f"🗑️ User '{target_user}' deleted!")
-                st.rerun()
-        else:
-            st.info("Zafar bhai ke ilawa koi aur sub-account nahi bana hua.")
+                conn.commit(); st.rerun()
 
     st.markdown("---")
     st.write("##### 🎛️ Assign Column-Level Visibility Rights")
@@ -469,8 +520,6 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
     current_rights_res = c.fetchone()
     current_allowed = json.loads(current_rights_res[0]) if current_rights_res else ALL_AVAILABLE_COLUMNS
     
-    st.markdown(f"**User `{user_to_configure.upper()}` ko dashboard par kaunse columns dikhane hain? Check lagayein:**")
-    
     chk_cols = st.columns(4)
     chosen_columns = []
     for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
@@ -480,19 +529,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                 chosen_columns.append(col_name)
                 
     if st.button("🔒 Column Permissions Save Karein", use_container_width=True):
-        if not chosen_columns:
-            st.error("Kam az kam aik column allow karna zaroori hai!")
+        if not chosen_columns: st.error("Kam az kam aik column allow karna zaroori hai!")
         else:
             c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
-            conn.commit()
-            st.success(f"✅ `{user_to_configure.upper()}` ke columns ki security save ho gayi!")
-
-    st.markdown("---")
-    st.write("##### 📊 User Accounts & Assigned Roles List")
-    df_users = pd.read_sql("SELECT id AS [ID], username AS [Username], role AS [Role Description] FROM users", conn)
-    def map_rights(role):
-        if role == "Admin": return "Full System Control + Account Management"
-        if role == "Manager": return "Can Add & Edit Logistics Data (No User Control)"
-        return "Read-Only Dashboard Access (Viewer)"
-    df_users['Assigned Operations'] = df_users['Role Description'].apply(map_rights)
-    st.dataframe(df_users, use_container_width=True, hide_index=True)
+            conn.commit(); st.success("Stored successfully!")
