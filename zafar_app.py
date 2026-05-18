@@ -29,6 +29,7 @@ def init_db():
     except:
         pass
 
+    # Back-end fields auto-injection inside SQLite structure safely
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
     except: pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
@@ -101,62 +102,66 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    # 🌟 Safest query mapping both tables with hardcoded display labels
-    query = '''
-        SELECT 
-            s.company_name AS [Company Name], 
-            s.bank_name AS [Bank Name], 
-            s.file_no AS [File No],
-            s.indenter AS [Indenter], 
-            s.shipper AS [Supplier Name],
-            i.item_name AS [Item Name],
-            i.brand_name AS [Brand Name], 
-            i.hs_code AS [HS Code],
-            i.qty AS [Quantity],
-            i.unit AS [Unit], 
-            i.unit_price AS [Unit Price],
-            i.actual_costing AS [Actual Costing (PKR)],
-            s.fc_amount AS [Total LC Value], 
-            s.currency AS [Currency], 
-            s.shipment_type AS [Type],
-            s.etd AS [ETD], 
-            s.eta AS [ETA], 
-            s.bl_no AS [BL / LC No], 
-            s.bank_docs AS [Bank Docs], 
-            s.remarks AS [Remarks]
-        FROM shipments s
-        LEFT JOIN shipment_items i ON s.file_no = i.file_no
-    '''
-    df = pd.read_sql(query, conn)
-
-    # 🌟 ULTIMATE FALLBACK CONTROL: Agar kisi wajah se merge query crash ho, toh backup display on karein
-    if df.empty or len(df.columns) < 5:
+    # 🌟 Safest extraction matching dynamically schema elements step by step
+    try:
+        query = '''
+            SELECT 
+                s.company_name AS [Company Name], 
+                s.bank_name AS [Bank Name], 
+                s.file_no AS [File No],
+                s.indenter AS [Indenter], 
+                s.shipper AS [Supplier Name],
+                i.item_name AS [Item Name],
+                i.brand_name AS [Brand Name], 
+                i.hs_code AS [HS Code],
+                i.qty AS [Quantity],
+                i.unit AS [Unit], 
+                i.unit_price AS [Unit Price],
+                i.actual_costing AS [Actual Costing (PKR)],
+                s.fc_amount AS [Total LC Value], 
+                s.currency AS [Currency], 
+                s.shipment_type AS [Type],
+                s.etd AS [ETD], 
+                s.eta AS [ETA], 
+                s.bl_no AS [BL / LC No], 
+                s.bank_docs AS [Bank Docs], 
+                s.remarks AS [Remarks]
+            FROM shipments s
+            LEFT JOIN shipment_items i ON s.file_no = i.file_no
+        '''
+        df = pd.read_sql(query, conn)
+    except:
+        # Ultimate fallback structural extraction to protect grid view execution
         df = pd.read_sql('SELECT * FROM shipments', conn)
-        # Fallback names fixing mapping row structures
-        if 'company_name' in df.columns: df.rename(columns={'company_name': 'Company Name'}, inplace=True)
-        if 'bank_name' in df.columns: df.rename(columns={'bank_name': 'Bank Name'}, inplace=True)
-        if 'file_no' in df.columns: df.rename(columns={'file_no': 'File No'}, inplace=True)
-        if 'indenter' in df.columns: df.rename(columns={'indenter': 'Indenter'}, inplace=True)
-        if 'shipper' in df.columns: df.rename(columns={'shipper': 'Supplier Name'}, inplace=True)
-        if 'items' in df.columns: df.rename(columns={'items': 'Item Name'}, inplace=True)
-        if 'weight' in df.columns: df.rename(columns={'weight': 'Quantity'}, inplace=True)
-        if 'weight_unit' in df.columns: df.rename(columns={'weight_unit': 'Unit'}, inplace=True)
-        if 'unit_price' in df.columns: df.rename(columns={'unit_price': 'Unit Price'}, inplace=True)
-        if 'fc_amount' in df.columns: df.rename(columns={'fc_amount': 'Total LC Value'}, inplace=True)
-        if 'currency' in df.columns: df.rename(columns={'currency': 'Currency'}, inplace=True)
-        if 'shipment_type' in df.columns: df.rename(columns={'shipment_type': 'Type'}, inplace=True)
-        if 'etd' in df.columns: df.rename(columns={'etd': 'ETD'}, inplace=True)
-        if 'eta' in df.columns: df.rename(columns={'eta': 'ETA'}, inplace=True)
-        if 'bl_no' in df.columns: df.rename(columns={'bl_no': 'BL / LC No'}, inplace=True)
-        if 'bank_docs' in df.columns: df.rename(columns={'bank_docs': 'Bank Docs'}, inplace=True)
-        if 'remarks' in df.columns: df.rename(columns={'remarks': 'Remarks'}, inplace=True)
+
+    # Normalize columns manually if query fell back to base shipments
+    if not df.empty and 'Company Name' not in df.columns:
+        cols_map = {
+            'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No',
+            'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name',
+            'brand_name': 'Brand Name', 'hs_code': 'HS Code', 'weight': 'Quantity',
+            'weight_unit': 'Unit', 'unit_price': 'Unit Price', 'actual_costing': 'Actual Costing (PKR)',
+            'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type',
+            'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'
+        }
+        df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
+
+    # Inject empty columns dynamically if still missing from direct schema fallback
+    expected_cols = [
+        'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
+        'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
+        'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks'
+    ]
+    for column_check in expected_cols:
+        if column_check not in df.columns:
+            df[column_check] = "-"
 
     if not df.empty:
-        # Auto Status Engine
+        # Auto Status Generator Engine
         today = datetime.now()
         def get_status(row):
             try:
-                if 'ETA' not in row or not row['ETA'] or row['ETA'] == "" or row['ETA'] == "-": return "📄 LC Opened"
+                if 'ETA' not in row or not row['ETA'] or row['ETA'] in ["", "-", None]: return "📄 LC Opened"
                 eta = pd.to_datetime(row['ETA'], errors='coerce')
                 etd = pd.to_datetime(row['ETD'], errors='coerce')
                 if pd.notnull(eta) and eta <= today: return "✅ Arrived"
@@ -177,15 +182,11 @@ if menu == "📊 Dashboard":
         sel_bank = f2.multiselect("Bank:", BANKS)
         search = f3.text_input("Search (File, Item, Supplier, Brand):")
 
-        # Column names normalize protection
-        comp_col = 'Company Name' if 'Company Name' in df.columns else ('company_name' if 'company_name' in df.columns else '')
-        bank_col = 'Bank Name' if 'Bank Name' in df.columns else ('bank_name' if 'bank_name' in df.columns else '')
-
-        if comp_col and sel_comp: df = df[df[comp_col].isin(sel_comp)]
-        if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
+        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
+        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
-        # Forced column structure execution mapping
+        # Ordered grid definition
         cols_order = [
             'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 
             'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 
@@ -320,13 +321,10 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
 # --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 Accounts Control Center & Rights Settings")
-    
     m_col1, m_col2 = st.columns(2)
-    
     with m_col1:
         st.write("##### 👤 Naya Account Banayein")
         selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES, key="new_role_sel")
-        
         with st.form("create_user_form"):
             new_user = st.text_input("Username:")
             new_pass = st.text_input("Password:", type="password")
@@ -343,10 +341,8 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
     with m_col2:
         st.write("##### 🔄 Password Badlein ya Account Delete Karein")
         df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
-        
         if not df_users_list.empty:
             target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
-            
             with st.form("update_password_form"):
                 new_password_val = st.text_input("Naya Password Likhein:", type="password")
                 if st.form_submit_button("🔒 Password Change Karein"):
@@ -355,7 +351,6 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         conn.commit()
                         st.success(f"✅ '{target_user}' ka password change ho gaya!")
                     else: st.error("Naya password likhna zaroori hai.")
-            
             st.write("---")
             st.warning(f"⚠️ Kya aap '{target_user}' ka account permanent khatam karna chahte hain?")
             if st.button("❌ Haan, Account Delete Kardo"):
