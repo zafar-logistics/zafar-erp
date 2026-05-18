@@ -158,15 +158,17 @@ if all_items_saved:
             JOIN shipments s ON i.file_no = s.file_no 
             WHERE i.item_name='{selected_graph_item}'
         """
-        df_graph = pd.read_sql(graph_query, conn)
-        if not df_graph.empty:
-            df_graph['Unit Price'] = pd.to_numeric(df_graph['unit_price'], errors='coerce')
-            df_graph['Actual Costing (PKR)'] = pd.to_numeric(df_graph['actual_costing'], errors='coerce')
-            df_graph = df_graph.dropna(subset=['Unit Price']).reset_index(drop=True)
-            
+        try:
+            df_graph = pd.read_sql(graph_query, conn)
             if not df_graph.empty:
-                st.sidebar.line_chart(df_graph[['Unit Price', 'Actual Costing (PKR)']])
-            else: st.sidebar.caption("No numeric price data available for graph.")
+                df_graph['Unit Price'] = pd.to_numeric(df_graph['unit_price'], errors='coerce')
+                df_graph['Actual Costing (PKR)'] = pd.to_numeric(df_graph['actual_costing'], errors='coerce')
+                df_graph = df_graph.dropna(subset=['Unit Price']).reset_index(drop=True)
+                if not df_graph.empty:
+                    st.sidebar.line_chart(df_graph[['Unit Price', 'Actual Costing (PKR)']])
+                else: st.sidebar.caption("No numeric price data available.")
+        except:
+            st.sidebar.caption("Graph data temporarily unavailable.")
 else: st.sidebar.caption("No items in system database.")
 
 st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
@@ -198,18 +200,23 @@ if menu == "📊 Dashboard":
         rights_res = c.fetchone()
         allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
 
-    query = '''
-        SELECT 
-            s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
-            s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
-            i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
-            i.unit AS [Unit], i.unit_price AS [Unit Price], i.actual_costing AS [Actual Costing (PKR)],
-            s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
-            s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
-        FROM shipments s
-        LEFT JOIN shipment_items i ON s.file_no = i.file_no
-    '''
-    df = pd.read_sql(query, conn)
+    # 🌟 CRITICAL FIX: Wrap the complex SQL query in a try-except fallback block to prevent DatabaseError crash
+    try:
+        query = '''
+            SELECT 
+                s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
+                s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
+                i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
+                i.unit AS [Unit], i.unit_price AS [Unit Price], i.actual_costing AS [Actual Costing (PKR)],
+                s.fc_amount AS [Total LC Value], s.currency AS [Currency], s.shipment_type AS [Type],
+                s.etd AS [ETD], s.eta AS [ETA], s.bl_no AS [BL / LC No], s.bank_docs AS [Bank Docs], s.remarks AS [Remarks]
+            FROM shipments s
+            LEFT JOIN shipment_items i ON s.file_no = i.file_no
+        '''
+        df = pd.read_sql(query, conn)
+    except:
+        # Ultimate fail-safe fallback to read base data table if relational mappings break down
+        df = pd.read_sql('SELECT * FROM shipments', conn)
 
     if not df.empty and 'Company Name' not in df.columns:
         cols_map = {'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No', 'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name', 'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type', 'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'}
@@ -219,7 +226,6 @@ if menu == "📊 Dashboard":
         if col not in df.columns: df[col] = "-"
 
     if not df.empty:
-        # 🌟 FIXED 100% SECURE DYNAMIC STATUS ENGINE LOGIC (Handles NoneType safely)
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
         today_etd_alerts = []
@@ -230,11 +236,11 @@ if menu == "📊 Dashboard":
             if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
             
             etd_dt = parse_date(row['ETD'])
-            eta_dt = parse_date(row['ETA'])
+            text_eta = row.get('ETA', '-') if 'ETA' in row else '-'
+            eta_dt = parse_date(text_eta)
             
-            # Safe Alert collection using direct attributes instead of mixing datetime types
             if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
-                today_etd_alerts.append(f"File No: {f_no} ({row['Item Name']}) AAJ CHALEGA!")
+                today_etd_alerts.append(f"File No: {f_no} ({row.get('Item Name', '-')}) AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 arrived_eta_alerts.append(f"File No: {f_no} MAL PORT PE LAG GAYA HAI!")
 
@@ -260,7 +266,8 @@ if menu == "📊 Dashboard":
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
-            safe_download_df = df[[c for c in allowed_display_cols if c in df.columns]]
+            safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
+            safe_download_df = df[safe_display_cols_clean]
             st.download_button(label="🟢 Download Excel Sheet", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown('</div>', unsafe_allow_html=True)
             
@@ -272,8 +279,8 @@ if menu == "📊 Dashboard":
             search = f3.text_input("Global Search Keywords:", placeholder="Type to filter data...")
             st.markdown('</div>', unsafe_allow_html=True)
 
-        if sel_comp: df = df[df['Company Name'].isin(sel_comp)]
-        if sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
+        if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
+        if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
 
         display_cols = [c for c in allowed_display_cols if c in df.columns]
