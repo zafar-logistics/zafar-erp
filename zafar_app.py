@@ -52,57 +52,73 @@ if "user_role" not in st.session_state:
 # --- GLOBAL ADVANCED STYLING INJECTOR ---
 st.markdown("""
     <style>
-        /* Modern Fonts & Clean Backgrounds */
+        /* Modern Clean Backgrounds */
         .stApp {
-            background-color: #fcfcfc;
+            background-color: #fafafa;
         }
         
-        /* Premium Branded Card Section Header Styling */
+        /* Premium Branded Title Section Header Styling */
         .dashboard-header {
             font-family: 'Georgia', serif;
-            color: #2c3e50;
-            font-size: 1.8rem;
+            color: #1a252f;
+            font-size: 1.6rem;
             font-weight: 700;
-            border-bottom: 3px solid #e67e22;
-            padding-bottom: 8px;
-            margin-bottom: 25px;
-            margin-top: 10px;
+            border-bottom: 2px solid #e67e22;
+            padding-bottom: 6px;
+            margin-bottom: 20px;
+            margin-top: -10px;
         }
         
-        /* Modern Card Wrapper Containers */
+        /* Compact Card Wrapper Containers */
         .custom-card {
             background-color: #ffffff;
-            padding: 24px;
-            border-radius: 10px;
-            box-shadow: 0px 4px 16px rgba(0,0,0,0.04);
-            border: 1px solid #eaeaea;
-            margin-bottom: 25px;
+            padding: 16px 20px;
+            border-radius: 8px;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.03);
+            border: 1px solid #e2e8f0;
+            margin-bottom: 15px;
         }
         
         .card-title {
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: bold;
-            color: #34495e;
-            margin-bottom: 15px;
+            color: #2c3e50;
+            margin-bottom: 10px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
         
         /* Custom Styling for Streamlit Native Buttons to map Haameem Theme */
         .stDownloadButton>button {
             background-color: #e67e22 !important;
             color: white !important;
-            border-radius: 6px !important;
+            border-radius: 4px !important;
             border: none !important;
             font-weight: bold !important;
-            padding: 8px 16px !important;
-            box-shadow: 0px 2px 6px rgba(230, 126, 34, 0.2);
+            padding: 6px 14px !important;
+            font-size: 0.9rem !important;
         }
         .stDownloadButton>button:hover {
             background-color: #d35400 !important;
-            box-shadow: 0px 4px 12px rgba(230, 126, 34, 0.4);
+        }
+        
+        /* 🚨 LOGOUT BUTTON HIGH VISIBILITY OVERRIDE */
+        .stSidebar div[element-type="button"] button, 
+        .stSidebar button[key="logout_btn_key"],
+        .stSidebar .stButton>button {
+            background-color: #c0392b !important;
+            color: #ffffff !important;
+            font-weight: bold !important;
+            border: 1px solid #962d22 !important;
+            border-radius: 6px !important;
+            padding: 8px 12px !important;
+            transition: all 0.2s ease !important;
+        }
+        .stSidebar .stButton>button:hover {
+            background-color: #e74c3c !important;
+            box-shadow: 0px 4px 10px rgba(192, 57, 43, 0.3) !important;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -172,24 +188,24 @@ if not st.session_state["logged_in"]:
     st.stop()
 
 # --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
-# Custom Slate Sidebar Modification
+# Custom Slate Grey Sidebar Implementation
 st.markdown("""
     <style>
         [data-testid="stSidebar"] {
-            background-color: #2c3e50 !important;
+            background-color: #243242 !important;
             color: #ffffff !important;
         }
         [data-testid="stSidebar"] p, [data-testid="stSidebar"] h1, [data-testid="stSidebar"] span {
             color: #ffffff !important;
         }
         .stRadio>div{
-            gap: 10px;
+            gap: 6px;
         }
         div[data-testid="stRadio"] label {
-            background-color: #34495e;
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid #455a64;
+            background-color: #2c3d52;
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #344963;
             transition: all 0.2s ease;
         }
         div[data-testid="stRadio"] label:hover {
@@ -199,8 +215,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.sidebar.title(f"👤 {st.session_state['username'].upper()}")
-st.sidebar.markdown(f"**Rights Level:** `{st.session_state['user_role']}`")
+st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-bottom:0px;'>👤 {st.session_state['username'].upper()}</h3>", unsafe_allow_html=True)
+st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
 available_options = ["📊 Dashboard"]
@@ -212,8 +228,9 @@ if st.session_state["user_role"] == "Admin":
 
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🚪 Logout System", use_container_width=True):
+st.sidebar.markdown("<br><br><br>", unsafe_allow_html=True)
+# High Visibility Structural Fix Button Action
+if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True, key="logout_btn_key"):
     st.session_state["logged_in"] = False
     st.session_state["username"] = ""
     st.session_state["user_role"] = ""
@@ -227,7 +244,7 @@ ROLES = ["Admin", "Manager", "Viewer"]
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    st.markdown('<div class="dashboard-header">📊 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
+    st.markdown('<div class="dashboard-header">📋 HAAMEEM - Logistics Master Dashboard</div>', unsafe_allow_html=True)
     
     try:
         query = '''
@@ -277,21 +294,25 @@ if menu == "📊 Dashboard":
             except: return "Pending"
         df['Status'] = df.apply(get_status, axis=1)
 
-        # 📥 Backup Block inside custom card element
-        st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Secure Backup</div>', unsafe_allow_html=True)
-        if st.session_state["user_role"] in ["Admin", "Manager"]:
-            csv_data = df.to_csv(index=False).encode('utf-8')
-            st.download_button(label="🟢 Download Active Sheet for Excel", data=csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
-        else:
-            st.caption("Read-only profiles do not have backup download clearance rights.")
-        st.markdown('</div>', unsafe_allow_html=True)
+        # Main horizontal alignment grid layout
+        c_top1, c_top2 = st.columns([2, 5])
         
-        # 🔍 Filters Area Block inside card element
-        st.markdown('<div class="custom-card"><div class="card-title">🔍 Search Filters Control</div>', unsafe_allow_html=True)
-        f1, f2, f3 = st.columns(3)
-        sel_comp = f1.multiselect("Select Import Company Entity:", COMPANIES)
-        sel_bank = f2.multiselect("Select Opening Bank:", BANKS)
-        search = f3.text_input("Global Search (File, Item, Supplier, Brand):", placeholder="Type keywords here...")
+        with c_top1:
+            st.markdown('<div class="custom-card"><div class="card-title">📥 System Backup</div>', unsafe_allow_html=True)
+            if st.session_state["user_role"] in ["Admin", "Manager"]:
+                csv_data = df.to_csv(index=False).encode('utf-8')
+                st.download_button(label="🟢 Download Excel Sheet", csv_data, file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            else:
+                st.caption("No backup clearance rights.")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with c_top2:
+            st.markdown('<div class="custom-card"><div class="card-title">🔍 Quick Filters Control</div>', unsafe_allow_html=True)
+            f1, f2, f3 = st.columns(3)
+            sel_comp = f1.multiselect("Import Entity:", COMPANIES)
+            sel_bank = f2.multiselect("Opening Bank:", BANKS)
+            search = f3.text_input("Global Search Keywords:", placeholder="Type to filter data...")
+            st.markdown('</div>', unsafe_allow_html=True)
 
         comp_col = 'Company Name' if 'Company Name' in df.columns else ('company_name' if 'company_name' in df.columns else '')
         bank_col = 'Bank Name' if 'Bank Name' in df.columns else ('bank_name' if 'bank_name' in df.columns else '')
@@ -299,9 +320,7 @@ if menu == "📊 Dashboard":
         if comp_col and sel_comp: df = df[df[comp_col].isin(sel_comp)]
         if bank_col and sel_bank: df = df[df[bank_col].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
-        st.markdown('</div>', unsafe_allow_html=True)
 
-        # Main Table Processing Layout Mapping
         cols_order = ['Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 'Brand Name', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 'Status', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks']
         display_cols = [c for c in cols_order if c in df.columns]
         df_display = df[display_cols]
@@ -309,19 +328,16 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        # Injecting Table Custom Professional Sheet Look with Theme Colors
         st.markdown("""
             <style>
                 div[data-testid="stDataFrame"] table th {
-                    background-color: #2c3e50 !important;
+                    background-color: #243242 !important;
                     color: #ffffff !important;
                     font-weight: bold !important;
-                    font-size: 0.95rem !important;
+                    font-size: 0.9rem !important;
                     text-align: center !important;
                 }
-                div[data-testid="stDataFrame"] table td {
-                    font-size: 0.9rem !important;
-                }
+                div[data-testid="stDataFrame"] table td { font-size: 0.85rem !important; }
             </style>
         """, unsafe_allow_html=True)
 
@@ -331,7 +347,7 @@ if menu == "📊 Dashboard":
 
 # --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
-    st.markdown('<div class="dashboard-header">📝 Nayi Shipment Records Entry Portal</div>', unsafe_allow_html=True)
+    st.subheader("📝 Nayi Shipment Records Entry Portal")
     with st.form("add_form", clear_on_submit=True):
         col_top1, col_top2 = st.columns(2)
         company_name = col_top1.selectbox("Company Name", COMPANIES)
@@ -379,13 +395,13 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
                     for item in items_inputs:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], item[2], item[3], item[4], item[5], item[6]))
                     conn.commit()
-                    st.success("✅ New shipment recorded saved under master schema database!")
+                    st.success("✅ New shipment recorded successfully!")
                     st.rerun()
                 except: st.error("Error: Save nahi ho saka.")
 
 # --- 3. UPDATE / EDIT ---
 elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin", "Manager"]:
-    st.markdown('<div class="dashboard-header">🔄 Update / Edit Master Logs & Costing Data</div>', unsafe_allow_html=True)
+    st.subheader("🔄 Update Master Logs & Costing Data")
     df_raw = pd.read_sql('SELECT * FROM shipments', conn)
     
     if not df_raw.empty:
@@ -466,7 +482,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
 
 # --- 4. 👥 MANAGE ACCOUNTS ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.markdown('<div class="dashboard-header">👥 System Accounts Control Center</div>', unsafe_allow_html=True)
+    st.subheader("👥 System Accounts Control Center")
     m_col1, m_col2 = st.columns(2)
     with m_col1:
         st.write("##### 👤 Naya Account Banayein")
