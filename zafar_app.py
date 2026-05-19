@@ -247,37 +247,68 @@ if uploaded_file is not None:
             
             # Date waale columns ka format set karna taake SQL mein error na aaye
             for col in ['ETD', 'ETA']:
-                if col in backup_df.columns:
-                    backup_df[col] = pd.to_datetime(backup_df[col], errors='coerce')
+                # =========================================================
+# DATE CONVERSION KA FUNCTION (Line 250-280 Fix)
+# =========================================================
 
-            # --- AAPKA EXISTING DATABASE INSERT CODE HERE ---
-            # (Jahan aap backup_df ko to_sql ya execute karke database mein save karte hain)
-            # Example: backup_df.to_sql('your_table_name', conn, if_exists='append', index=False)
+def parse_my_date(date_str):
+    """Excel ki dates ko standard format mein badalne ke liye function"""
+    if pd.isna(date_str) or str(date_str).strip() in ['', 'None', '-', 'NaT']:
+        return None
+    
+    # Alag alag date formats ko automatic check karne ke liye
+    for fmt in ('%d-%b-%y', '%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y'):
+        try:
+            return pd.to_datetime(str(date_str).strip(), format=fmt)
+        except:
+            continue
+    
+    # Agar koi format match na kare toh standard fallback
+    return pd.to_datetime(date_str, errors='coerce')
+
+
+# =========================================================
+# DATA UPLOAD & CLEANING PIPELINE
+# =========================================================
+uploaded_file = st.file_uploader("Apni Backup File Select Karein:", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        backup_df = pd.read_csv(uploaded_file, encoding="utf-8")
+    except UnicodeDecodeError:
+        uploaded_file.seek(0)
+        backup_df = pd.read_csv(uploaded_file, encoding="cp1252")
+
+    st.write("📋 File Preview (Pehle 5 Rows):")
+    st.dataframe(backup_df.head())
+
+    if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo"):
+        try:
+            # Columns ki spaces khatam karna
+            backup_df.columns = backup_df.columns.str.strip()
             
-            st.success("🎉 Data HAAMEEM software mein kamyabi se load ho gaya hai! Dashboard refresh ho raha hai...")
-            st.rerun()  # Dashboard ko naye data ke sath dobara chalane ke liye
+            # Numeric columns ki safai
+            if 'Actual Costing (PKR)' in backup_df.columns:
+                backup_df['Actual Costing (PKR)'] = backup_df['Actual Costing (PKR)'].replace('-', 0).fillna(0)
+                backup_df['Actual Costing (PKR)'] = pd.to_numeric(backup_df['Actual Costing (PKR)'], errors='coerce').fillna(0)
+            
+            if 'Total LC Value' in backup_df.columns:
+                backup_df['Total LC Value'] = backup_df['Total LC Value'].astype(str).str.replace(',', '')
+                backup_df['Total LC Value'] = pd.to_numeric(backup_df['Total LC Value'], errors='coerce').fillna(0)
+            
+            # DATE COLUMNS PAR FUNCTION APPLY KARNA (No more SyntaxError!)
+            for col in ['ETD', 'ETA']:
+                if col in backup_df.columns:
+                    backup_df[col] = backup_df[col].apply(parse_my_date)
+
+            # --- YAHA AAPKA DATABASE MEIN INSERT KARNE KA CODE CHALEGA ---
+            # backup_df.to_sql('your_table_name', conn, if_exists='append', index=False)
+            
+            st.success("🎉 Data HAAMEEM software mein kamyabi se load ho gaya hai!")
+            st.rerun()
             
         except Exception as insert_error:
             st.error(f"❌ Data load karte waqt masla aaya: {insert_error}")
-    for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
-        try: return datetime.strptime(str(date_str).strip(), fmt)
-        except: pass
-    return None
-
-# --- 1. DASHBOARD ---
-if menu == "📊 Dashboard":
-    st.markdown('<h2 style="color: #2c3e50; font-family: Georgia, serif; font-weight: bold; margin-top: -20px; margin-bottom: 20px;">📋 HAAMEEM - Logistics Master Dashboard</h2>', unsafe_allow_html=True)
-    
-    if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
-        allowed_display_cols = ALL_AVAILABLE_COLUMNS
-    else:
-        c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
-        rights_res = c.fetchone()
-        allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
-
-    try:
-        query = '''
-            SELECT 
                 s.company_name AS [Company Name], s.bank_name AS [Bank Name], s.file_no AS [File No],
                 s.indenter AS [Indenter], s.shipper AS [Supplier Name], i.item_name AS [Item Name],
                 i.brand_name AS [Brand Name], i.hs_code AS [HS Code], i.qty AS [Quantity],
