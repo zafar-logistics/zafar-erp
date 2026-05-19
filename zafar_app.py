@@ -3,33 +3,69 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 
-# PAGE CONFIGURATION
-st.set_page_config(page_title="Zafar ERP - Home", layout="wide")
+# 1. PAGE SETUP WITH MODERN CUSTOM GLASSMORPHIC THEME
+st.set_page_config(
+    page_title="Zafar Logistics ERP - Import Management",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# 1. DATABASE SE DATA READ KARNE KA FUNCTION (With Data Type Cleaning)
-def load_dashboard_data():
+# Dark glassmorphic aur neon touches ka injection CSS
+st.markdown("""
+    <style>
+    .reportview-container {
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 28px;
+        font-weight: bold;
+        color: #38bdf8 !important;
+        text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #94a3b8 !important;
+    }
+    .stButton>button {
+        background: linear-gradient(90deg, #06b6d4 0%, #3b82f6 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 24px;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(6, 182, 212, 0.4);
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.6);
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 2. DATA PROCESSING FUNCTIONS WITH ROBUST DATATYPE CLEANSING
+def load_clean_data():
     conn = sqlite3.connect("zafar_database.db")
     try:
         df = pd.read_sql_query("SELECT * FROM imports ORDER BY id DESC", conn)
         if not df.empty:
-            # Commas aur text safai taake calculation mein crash na ho
-            if 'total_lc_value' in df.columns:
-                df['total_lc_value'] = df['total_lc_value'].astype(str).str.replace(',', '').str.strip()
-                df['total_lc_value'] = pd.to_numeric(df['total_lc_value'], errors='coerce').fillna(0.0)
-            if 'quantity' in df.columns:
-                df['quantity'] = df['quantity'].astype(str).str.replace(',', '').str.strip()
-                df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0.0)
-            if 'unit_price' in df.columns:
-                df['unit_price'] = df['unit_price'].astype(str).str.replace(',', '').str.strip()
-                df['unit_price'] = pd.to_numeric(df['unit_price'], errors='coerce').fillna(0.0)
+            # Calculation columns ko handle karna
+            for num_col in ['total_lc_value', 'quantity', 'unit_price']:
+                if num_col in df.columns:
+                    df[num_col] = df[num_col].astype(str).str.replace(',', '').str.strip()
+                    df[num_col] = pd.to_numeric(df[num_col], errors='coerce').fillna(0.0)
+            
+            # Formatting Display Columns for UI view
+            df['Display_LC_Value'] = df['total_lc_value'].apply(lambda x: f"${x:,.2f}")
+            df['Display_Quantity'] = df.apply(lambda row: f"{row['quantity']:,.2f} {row['unit'] if 'unit' in row else 'KG'}", axis=1)
+            df['Display_Unit_Price'] = df['unit_price'].apply(lambda x: f"${x:,.2f}")
         return df
     except Exception:
         return pd.DataFrame()
     finally:
         conn.close()
 
-# 2. DATABASE MEIN BACKUP LOAD KARNE KA FUNCTION
-def insert_backup_data(df):
+def insert_backup_records(df):
     conn = sqlite3.connect("zafar_database.db")
     cursor = conn.cursor()
     
@@ -65,7 +101,6 @@ def insert_backup_data(df):
     """
     
     try:
-        # Data insert karne se pehle bhi data ko clean kar letay hain safe side ke liye
         df_clean = df.copy()
         for col in ['Quantity', 'Unit Price', 'Total LC Value']:
             if col in df_clean.columns:
@@ -75,90 +110,67 @@ def insert_backup_data(df):
         df_records = df_clean.where(pd.notnull(df_clean), None).values.tolist()
         cursor.executemany(insert_query, df_records)
         conn.commit()
-        
-        st.success("🎉 Haan, Yeh Poora Data Database Mein Sahi Se Load Ho Chuka Hai!")
-        st.session_state['active_tab'] = 0
-        st.rerun()
-        
+        st.success("🎉 Backup data database mein inject ho chuka hai!")
+        return True
     except Exception as e:
-        st.error(f"❌ Database error: {str(e)}")
+        st.error(f"❌ Core Error: {str(e)}")
+        return False
     finally:
         conn.close()
 
+# --- SIDEBAR CONTROL PANEL ---
+st.sidebar.title("⚡ Control Center")
+st.sidebar.write("Zafar Logistics ERP v2.4")
+st.sidebar.write("---")
 
-# --- NAVIGATION TABS ---
-tab_dashboard, tab_backup = st.tabs(["📊 Main Dashboard", "📥 System Backup & Restore"])
+# Main Navigation Menu in Sidebar (Aapka original view structure)
+app_mode = st.sidebar.radio(
+    "Navigate Modules",
+    ["📊 Live Dashboard & Search", "📥 Database Backup Restore"]
+)
 
+# Add quick filter selectors inside sidebar to restore analytics power
+live_df = load_clean_data()
+selected_item = "All Items"
+selected_supplier = "All Suppliers"
+
+if app_mode == "📊 Live Dashboard & Search" and not live_df.empty:
+    st.sidebar.subheader("🎯 Quick Filters")
+    if 'item_name' in live_df.columns:
+        item_list = ["All Items"] + sorted(list(live_df['item_name'].dropna().unique()))
+        selected_item = st.sidebar.selectbox("Filter by Item Material", item_list)
+    if 'supplier_name' in live_df.columns:
+        supplier_list = ["All Suppliers"] + sorted(list(live_df['supplier_name'].dropna().unique()))
+        selected_supplier = st.sidebar.selectbox("Filter by Shipper/Supplier", supplier_list)
 
 # ==========================================
-# TAB 1: MAIN DASHBOARD (Fixed Redacted ValueError)
+# MODULE 1: MODERN LOOKUP & SEARCH DASHBOARD
 # ==========================================
-with tab_dashboard:
-    st.title("📊 Business Import Dashboard")
-    st.write("Aapka database se loaded live data neeche show ho raha hai:")
-    
-    live_df = load_dashboard_data()
+if app_mode == "📊 Live Dashboard & Search":
+    st.title("📊 Business Import Analytics Dashboard")
+    st.write("Live database connection active.")
     
     if not live_df.empty:
-        # Total Summary Cards - Formatted and Cleaned Values
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Shipments Loaded", f"{len(live_df)}")
-        with col2:
-            total_lc = live_df['total_lc_value'].sum() if 'total_lc_value' in live_df.columns else 0.0
-            st.metric("Total LC Value (USD)", f"${total_lc:,.2f}")
-        with col3:
-            total_qty = live_df['quantity'].sum() if 'quantity' in live_df.columns else 0.0
-            st.metric("Total Quantity", f"{total_qty:,.2f} KG")
+        # Applying Dynamic Sidebar Filters
+        filtered_df = live_df.copy()
+        if selected_item != "All Items":
+            filtered_df = filtered_df[filtered_df['item_name'] == selected_item]
+        if selected_supplier != "All Suppliers":
+            filtered_df = filtered_df[filtered_df['supplier_name'] == selected_supplier]
             
-        st.write("---")
-        # Live Data Table
-        st.dataframe(live_df, use_container_width=True)
-    else:
-        st.warning("⚠️ Dashboard par dikhane ke liye koi data nahi mila. Pehle 'System Backup' tab par jaakar file upload karein.")
-
-
-# ==========================================
-# TAB 2: SYSTEM BACKUP & RESTORE
-# ==========================================
-with tab_backup:
-    st.title("📥 Upload System Backup Excel File (.csv)")
-    st.info("💡 Yeh portal aapki purani download ki hui Excel (CSV) file ko read karke chalte hue software ke database mein saari entries ek sath load kar dega.")
-    
-    st.write("### Apni Backup File Select Karein:")
-    uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"], label_visibility="collapsed", key="backup_uploader")
-    
-    if uploaded_file is not None:
-        try:
-            df = pd.read_csv(uploaded_file)
-            df.columns = df.columns.str.strip()
-            
-            expected_cols = [
-                'Supplier Name', 'Item Name', 'BRAND NAME', 'HS Code', 'Quantity', 'Unit', 
-                'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 
-                'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks', 'Status'
+        # Top Global Search Bar (Aapka dynamic lookahead feature)
+        search_query = st.text_input("🔍 Global Search (Type Supplier Name, Item, BL/LC No, or HS Code to lookup...)", "")
+        if search_query:
+            filtered_df = filtered_df[
+                filtered_df['supplier_name'].astype(str).str.contains(search_query, case=False) |
+                filtered_df['item_name'].astype(str).str.contains(search_query, case=False) |
+                filtered_df['bl_lc_no'].astype(str).str.contains(search_query, case=False) |
+                filtered_df['hs_code'].astype(str).str.contains(search_query, case=False)
             ]
-            
-            for col in expected_cols:
-                if col not in df.columns:
-                    df[col] = None
-                    
-            df_final = df[expected_cols].copy()
-            df_final['Status'] = df_final['Status'].fillna('None')
-            
-            st.write("### 📊 File Preview (Pehle 5 Rows):")
-            st.dataframe(df_final.head(5), use_container_width=True)
-            
-            st.session_state['uploaded_df'] = df_final
-            
-        except Exception as e:
-            st.error(f"File read karne mein error aya: {str(e)}")
-            
-        st.write("---")
-        
-        if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo", use_container_width=True):
-            if 'uploaded_df' in st.session_state:
-                with st.spinner("Database mein entries inject ho rahi hain aur dashboard refresh ho raha hai..."):
-                    insert_backup_data(st.session_state['uploaded_df'])
-            else:
-                st.warning("Pehle file sahi se upload hone dein.")
+
+        # Professional High-Visibility Kpi Summary Blocks
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Total Active Shipments", f"{len(filtered_df)}")
+        with c2:
+            total_
