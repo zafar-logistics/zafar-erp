@@ -627,80 +627,74 @@ elif menu == "📥 Upload Backup (Excel)":
                         it_name = str(row.get('Item Name', '-'))
                         if it_name and it_name != "-":
                             it_brand = str(row.get('Brand Name', row.get('BRAND', '-')))
-                            it_hs = str(row.get('HS Code', '-'))
-                            it_qty = str(row.get('Quantity', '0'))
-                            it_unit = str(row.get('Unit', 'KG'))
-                            it_price = str(row.get('Unit Price', '0'))
-                            it_cost = str(row.get('Actual Costing (PKR)', '0'))
-                            
-                            c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
-                                         VALUES (?,?,?,?,?,?,?,?)''', 
-                                      (f_no, it_name, it_brand, it_hs, it_qty, it_unit, it_price, it_cost))
-                        
-                        success_count += 1
-                    
-                    conn.commit()
-                    st.success(f"🎉 Mubarak ho! File ka data kamyabi se restore ho gaya hai. Total processed rows: {success_count}. Duplicated skipped files: {duplicate_count}")
-                    st.balloons()
-                    st.rerun()
-        except Exception as e:
-            st.error(f"❌ File read karne mein error aaya. Details: {e}")
-
-# --- 5. MANAGE ACCOUNTS PANEL ---
-elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
-    st.subheader("👥 System Accounts & Column Security Settings")
-    m_col1, m_col2 = st.columns(2)
-    with m_col1:
-        st.write("##### 👤 Naya Account Banayein")
-        selected_role = st.selectbox("Rights Level (Role) Chunien:", ROLES, key="new_role_sel")
-        with st.form("create_user_form"):
-            new_user = st.text_input("Username:")
-            new_pass = st.text_input("Password:", type="password")
-            if st.form_submit_button("Create Account"):
-                if new_user and new_pass:
-                    try:
-                        u_clean = new_user.strip().lower()
-                        c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
-                        c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
-                        conn.commit(); st.success(f"✅ User '{u_clean}' created!"); st.rerun()
-                    except: st.error("Error: Username pehle se dakhil hai.")
-                else: st.error("Fields bhanna zaroori hain.")
-
-    with m_col2:
-        st.write("##### 🔄 Password Badlein ya Account Delete Karein")
-        df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
-        if not df_users_list.empty:
-            target_user = st.selectbox("Account Select Karein:", df_users_list['username'].tolist())
-            with st.form("update_password_form"):
-                new_password_val = st.text_input("Naya Password Likhein:", type="password")
-                if st.form_submit_button("🔒 Password Change Karein"):
-                    if new_password_val:
-                        c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
-                        conn.commit(); st.success(f"✅ Password changed!")
-                    else: st.error("Field empty.")
-            if st.button("❌ Haan, Account Delete Kardo"):
-                c.execute("DELETE FROM users WHERE username=?", (target_user,))
-                c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
-                conn.commit(); st.rerun()
-
-    st.markdown("---")
-    st.write("##### 🎛️ Assign Column-Level Visibility Rights")
-    df_all_users_raw = pd.read_sql("SELECT username FROM users", conn)
-    user_to_configure = st.selectbox("Kis user ke Columns control karne hain?", df_all_users_raw['username'].tolist())
-    
-    c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (user_to_configure,))
-    current_rights_res = c.fetchone()
-    current_allowed = json.loads(current_rights_res[0]) if current_rights_res else ALL_AVAILABLE_COLUMNS
-    
-    chk_cols = st.columns(4)
-    chosen_columns = []
-    for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
-        with chk_cols[idx % 4]:
-            if st.checkbox(col_name, value=col_name in current_allowed, key=f"chk_{user_to_configure}_{col_name}"):
-                chosen_columns.append(col_name)
+                           # =========================================================
+        # DATABASE INSERT PIPELINE (Line 630-706 Permanent Fix)
+        # =========================================================
+        try:
+            # Database cursor connection handle karna
+            cursor = conn.cursor()
+            
+            # Ek ek karke saari rows ko clean karke save karna
+            for index, row in backup_df.iterrows():
                 
-    if st.button("🔒 Column Permissions Save Karein", use_container_width=True):
-        if not chosen_columns: st.error("Kam az kam aik column allow karna zaroori hai!")
-        else:
-            c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
-            conn.commit(); st.success("Stored successfully!")
+                # Excel/CSV ke data ko variables mein safe save karna (Dashes aur Null values handle karte hue)
+                company_name = str(row.get('Company Name', '')).strip()
+                bank_name = str(row.get('Bank Name', '')).strip()
+                file_no = str(row.get('File No', '')).strip()
+                indenter = str(row.get('Indenter', '')).strip()
+                supplier_name = str(row.get('Supplier Name', '')).strip()
+                item_name = str(row.get('Item Name', '')).strip()
+                brand_name = str(row.get('BRAND NAME', '')).strip()
+                hs_code = str(row.get('HS Code', '')).strip()
+                
+                quantity = pd.to_numeric(row.get('Quantity'), errors='coerce')
+                quantity = float(quantity) if not pd.isna(quantity) else 0.0
+                
+                unit = str(row.get('Unit', 'KG')).strip()
+                
+                unit_price = pd.to_numeric(row.get('Unit Price'), errors='coerce')
+                unit_price = float(unit_price) if not pd.isna(unit_price) else 0.0
+                
+                actual_costing = pd.to_numeric(row.get('Actual Costing (PKR)'), errors='coerce')
+                actual_costing = float(actual_costing) if not pd.isna(actual_costing) else 0.0
+                
+                total_lc_value = pd.to_numeric(row.get('Total LC Value'), errors='coerce')
+                total_lc_value = float(total_lc_value) if not pd.isna(total_lc_value) else 0.0
+                
+                currency = str(row.get('Currency', 'USD')).strip()
+                shipment_type = str(row.get('Type', '')).strip()
+                
+                # Dates format handling (None agar empty ho)
+                etd = row.get('ETD') if pd.notna(row.get('ETD')) else None
+                eta = row.get('ETA') if pd.notna(row.get('ETA')) else None
+                
+                bl_lc_no = str(row.get('BL / LC No', '')).strip() if pd.notna(row.get('BL / LC No')) else None
+                bank_docs = str(row.get('Bank Docs', '')).strip() if pd.notna(row.get('Bank Docs')) else None
+                remarks = str(row.get('Remarks', '')).strip() if pd.notna(row.get('Remarks')) else None
+                status_val = str(row.get('Status', 'None')).strip()
+
+                # INSERT QUERY (Quotes correctly closed here ✅)
+                insert_query = """
+                INSERT INTO master_tracker (
+                    company_name, bank_name, file_no, indenter, supplier_name, 
+                    item_name, brand_name, hs_code, quantity, unit, 
+                    unit_price, actual_costing, total_lc_value, currency, type, 
+                    etd, eta, bl_lc_no, bank_docs, remarks, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                
+                # Query execute karna saare matching clean data ke sath
+                cursor.execute(insert_query, (
+                    company_name, bank_name, file_no, indenter, supplier_name,
+                    item_name, brand_name, hs_code, quantity, unit,
+                    unit_price, actual_costing, total_lc_value, currency, shipment_type,
+                    etd, eta, bl_lc_no, bank_docs, remarks, status_val
+                ))
+            
+            # Data ko permanently commit/save karna
+            conn.commit()
+            st.success("🎉 M/s HAAMEEM Ka Poora Data Software Mein Kamyabi Se Load Ho Gaya Hai!")
+            st.rerun()
+
+        except Exception as db_err:
+            st.error(f"❌ Database mein data save karte waqt error aaya: {db_err}")
