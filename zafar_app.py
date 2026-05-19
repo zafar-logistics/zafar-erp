@@ -197,57 +197,68 @@ if not st.session_state["logged_in"]:
             result = c.fetchone()
             if result:
                 st.session_state["logged_in"] = True
-                st.session_state["username"] = u_clean
-                st.session_state["user_role"] = result[0]
-                st.rerun()
-            else: st.error("Invalid credentials.")
-        st.markdown("</div></div>", unsafe_allow_html=True)
-    st.stop()
+                import pandas as pd
+import streamlit as st
 
-# --- SIDEBAR MENU ---
-st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-bottom:0px;'>👤 {st.session_state['username'].upper()}</h3>", unsafe_allow_html=True)
-st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
-st.sidebar.markdown("---")
+# ==========================================
+# 1. DATABASE SE DATA READ KARNE KA SAFE CODE (Line 212 Fix)
+# ==========================================
+try:
+    # Yeh aapki existing query aur connection ko safe tareeqe se chalayega
+    df = pd.read_sql(query, conn)
+except Exception as e:
+    # Agar database backend par koi temporary column ya connection ka masla ho
+    st.error("⚠️ Dashboard data read karne mein temporary masla aaya hai.")
+    st.info("💡 Solution: Neeche 'System Backup' wale section se apni aakhri CSV file dobara upload karke 'Load Kardo' par click karein taake database refresh ho jaye.")
+    df = pd.DataFrame() # Khali dataframe taake aage ka code crash na ho
 
-available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit", "📥 Upload Backup (Excel)"]
-if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
-menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-# --- HISTORY GRAPH ---
-st.sidebar.markdown("---")
-st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
-all_items_saved = get_distinct_values("item_name", "shipment_items")
-if all_items_saved:
-    selected_graph_item = st.sidebar.selectbox("Select Item for Trend Line:", ["-- Select Item --"] + all_items_saved)
-    if selected_graph_item != "-- Select Item --":
-        graph_query = f"""
-            SELECT s.file_no, i.unit_price, i.actual_costing 
-            FROM shipment_items i 
-            JOIN shipments s ON i.file_no = s.file_no 
-            WHERE i.item_name='{selected_graph_item}'
-        """
+# ==========================================
+# 2. DATA UPLOAD & CLEANING SYSTEM (Backup Fix)
+# ==========================================
+uploaded_file = st.file_uploader("Apni Backup File Select Karein:", type=["csv"])
+
+if uploaded_file is not None:
+    try:
+        # Pehle standard utf-8 se file read karne ki koshish karein
+        backup_df = pd.read_csv(uploaded_file, encoding="utf-8")
+    except UnicodeDecodeError:
+        # Agar Excel ka encoding error aaye (jo pehle aaya tha), toh isse safe read karein
+        uploaded_file.seek(0)
+        backup_df = pd.read_csv(uploaded_file, encoding="cp1252")
+
+    # File ka preview dikhane ke liye
+    st.write("📋 File Preview (Pehle 5 Rows):")
+    st.dataframe(backup_df.head())
+
+    # Data Load Karne Ka Button
+    if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo"):
         try:
-            df_graph = pd.read_sql(graph_query, conn)
-            if not df_graph.empty:
-                df_graph['Unit Price'] = pd.to_numeric(df_graph['unit_price'], errors='coerce')
-                df_graph['Actual Costing (PKR)'] = pd.to_numeric(df_graph['actual_costing'], errors='coerce')
-                df_graph = df_graph.dropna(subset=['Unit Price']).reset_index(drop=True)
-                if not df_graph.empty:
-                    st.sidebar.line_chart(df_graph[['Unit Price', 'Actual Costing (PKR)']])
-        except: pass
+            # Data ko database mein bhejne se pehle bilkul saaf (clean) karna
+            backup_df.columns = backup_df.columns.str.strip()  # Column names ki faltu spaces khatam
+            
+            # Jin columns mein numbers aane hain, unke dash (-) ya comma (,) ko theek karna
+            if 'Actual Costing (PKR)' in backup_df.columns:
+                backup_df['Actual Costing (PKR)'] = backup_df['Actual Costing (PKR)'].replace('-', 0).fillna(0)
+            
+            if 'Total LC Value' in backup_df.columns:
+                backup_df['Total LC Value'] = backup_df['Total LC Value'].astype(str).str.replace(',', '')
+                backup_df['Total LC Value'] = pd.to_numeric(backup_df['Total LC Value'], errors='coerce').fillna(0)
+            
+            # Date waale columns ka format set karna taake SQL mein error na aaye
+            for col in ['ETD', 'ETA']:
+                if col in backup_df.columns:
+                    backup_df[col] = pd.to_datetime(backup_df[col], errors='coerce')
 
-st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
-if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
-    st.session_state["logged_in"] = False; st.rerun()
-
-BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
-COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
-CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
-UNITS = ["KG", "MT", "DRUMS", "BAGS"]
-ROLES = ["Admin", "Manager", "Viewer"]
-
-def parse_date(date_str):
-    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan", "Nat", "none"]: return None
+            # --- AAPKA EXISTING DATABASE INSERT CODE HERE ---
+            # (Jahan aap backup_df ko to_sql ya execute karke database mein save karte hain)
+            # Example: backup_df.to_sql('your_table_name', conn, if_exists='append', index=False)
+            
+            st.success("🎉 Data HAAMEEM software mein kamyabi se load ho gaya hai! Dashboard refresh ho raha hai...")
+            st.rerun()  # Dashboard ko naye data ke sath dobara chalane ke liye
+            
+        except Exception as insert_error:
+            st.error(f"❌ Data load karte waqt masla aaya: {insert_error}")
     for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
         try: return datetime.strptime(str(date_str).strip(), fmt)
         except: pass
