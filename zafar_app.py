@@ -123,13 +123,13 @@ st.sidebar.title("⚡ Control Center")
 st.sidebar.write("Zafar Logistics ERP v2.4")
 st.sidebar.write("---")
 
-# Main Navigation Menu in Sidebar (Aapka original view structure)
+# Main Navigation Menu in Sidebar
 app_mode = st.sidebar.radio(
     "Navigate Modules",
     ["📊 Live Dashboard & Search", "📥 Database Backup Restore"]
 )
 
-# Add quick filter selectors inside sidebar to restore analytics power
+# Active filters setup
 live_df = load_clean_data()
 selected_item = "All Items"
 selected_supplier = "All Suppliers"
@@ -151,14 +151,14 @@ if app_mode == "📊 Live Dashboard & Search":
     st.write("Live database connection active.")
     
     if not live_df.empty:
-        # Applying Dynamic Sidebar Filters
+        # Applying Sidebar Filters
         filtered_df = live_df.copy()
         if selected_item != "All Items":
             filtered_df = filtered_df[filtered_df['item_name'] == selected_item]
         if selected_supplier != "All Suppliers":
             filtered_df = filtered_df[filtered_df['supplier_name'] == selected_supplier]
             
-        # Top Global Search Bar (Aapka dynamic lookahead feature)
+        # Top Global Search Bar
         search_query = st.text_input("🔍 Global Search (Type Supplier Name, Item, BL/LC No, or HS Code to lookup...)", "")
         if search_query:
             filtered_df = filtered_df[
@@ -168,9 +168,84 @@ if app_mode == "📊 Live Dashboard & Search":
                 filtered_df['hs_code'].astype(str).str.contains(search_query, case=False)
             ]
 
-        # Professional High-Visibility Kpi Summary Blocks
+        # Professional High-Visibility KPI Summary Blocks (FIXED LINE 176 TYPO)
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("Total Active Shipments", f"{len(filtered_df)}")
         with c2:
-            total_
+            calculated_lc_sum = filtered_df['total_lc_value'].sum() if 'total_lc_value' in filtered_df.columns else 0.0
+            st.metric("Aggregate LC Value (USD)", f"${calculated_lc_sum:,.2f}")
+        with c3:
+            calculated_qty_sum = filtered_df['quantity'].sum() if 'quantity' in filtered_df.columns else 0.0
+            st.metric("Total Cargo Weight", f"{calculated_qty_sum:,.2f} Units")
+            
+        st.write("---")
+        
+        # Clean Display Table Structure
+        display_cols = {
+            'id': 'ID',
+            'supplier_name': 'Supplier Name',
+            'item_name': 'Item Description',
+            'brand_name': 'Brand',
+            'hs_code': 'HS Code',
+            'Display_Quantity': 'Quantity (Weight)',
+            'Display_Unit_Price': 'Unit Price',
+            'actual_costing': 'Actual Costing (PKR)',
+            'Display_LC_Value': 'Total LC Value',
+            'currency': 'Currency',
+            'type': 'Type',
+            'etd': 'ETD',
+            'eta': 'ETA',
+            'bl_lc_no': 'BL / LC Number',
+            'bank_docs': 'Bank Docs',
+            'remarks': 'Remarks',
+            'status': 'Status'
+        }
+        
+        existing_cols = [c for c in display_cols.keys() if c in filtered_df.columns]
+        ui_table = filtered_df[existing_cols].rename(columns=display_cols)
+        
+        st.subheader("📋 Filtered Active Shipments Record Log")
+        st.dataframe(ui_table, use_container_width=True)
+    else:
+        st.warning("⚠️ Database structure table available, but no entries found. Use the sidebar menu to reload backup system data.")
+
+# ==========================================
+# MODULE 2: BACKUP PORTAL
+# ==========================================
+elif app_mode == "📥 Database Backup Restore":
+    st.title("📥 System Configuration Backup & Engine Sync")
+    st.info("💡 Yeh gateway Excel/CSV records backup data ko read karke local database ke metrics reset aur compile karega.")
+    
+    st.write("### System Architecture File Upload:")
+    uploaded_file = st.file_uploader("Select architectural system file (.csv)", type=["csv"], label_visibility="collapsed")
+    
+    if uploaded_file is not None:
+        try:
+            df_file = pd.read_csv(uploaded_file)
+            df_file.columns = df_file.columns.str.strip()
+            
+            target_schema = [
+                'Supplier Name', 'Item Name', 'BRAND NAME', 'HS Code', 'Quantity', 'Unit', 
+                'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 
+                'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks', 'Status'
+            ]
+            
+            for column_name in target_schema:
+                if column_name not in df_file.columns:
+                    df_file[column_name] = None
+                    
+            final_import_dataframe = df_file[target_schema].copy()
+            final_import_dataframe['Status'] = final_import_dataframe['Status'].fillna('None')
+            
+            st.write("### 📊 Live Inbound Buffer Preview:")
+            st.dataframe(final_import_dataframe.head(5), use_container_width=True)
+            
+            if st.button("🚀 Confirm Integrity & Inject Records into Database", use_container_width=True):
+                with st.spinner("Processing calculations data mapping rows..."):
+                    success = insert_backup_records(final_import_dataframe)
+                    if success:
+                        st.balloons()
+                        st.success("Data compiled perfectly! Navigate to dashboard to view update.")
+        except Exception as error:
+            st.error(f"Inbound processing failed: {str(error)}")
