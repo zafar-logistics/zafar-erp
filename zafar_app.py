@@ -3,10 +3,10 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 
-# PAGE CONFIGURATION (Streamlit ki basic setting)
+# PAGE CONFIGURATION
 st.set_page_config(page_title="Zafar ERP - Backup Restore", layout="wide")
 
-# 1. DATE PARSING FUNCTION (Fixed 'return outside function' error)
+# 1. DATE PARSING FUNCTION
 def parse_date(date_str, fmt="%d-%b-%y"):
     if pd.isna(date_str) or str(date_str).strip().lower() in ['none', '']:
         return None
@@ -15,13 +15,36 @@ def parse_date(date_str, fmt="%d-%b-%y"):
     except Exception:
         return str(date_str)
 
-# 2. DATABASE INSERT FUNCTION (Fixed 'unterminated triple-quoted string' error)
+# 2. DATABASE INSERT FUNCTION WITH AUTOMATIC TABLE CREATION
 def insert_backup_data(df):
-    # Database connection (Aapki db file ka naam)
     conn = sqlite3.connect("zafar_database.db")
     cursor = conn.cursor()
     
-    # Bulk Insert Query - Tamam columns ko safe tarike se handle karne ke liye fixed spacing aur proper quotes
+    # AGAR TABLE NAHI BANI HUI TO YEH KHUD BANA DEGA
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS imports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_name TEXT,
+        item_name TEXT,
+        brand_name TEXT,
+        hs_code TEXT,
+        quantity REAL,
+        unit TEXT,
+        unit_price REAL,
+        actual_costing TEXT,
+        total_lc_value REAL,
+        currency TEXT,
+        type TEXT,
+        etd TEXT,
+        eta TEXT,
+        bl_lc_no TEXT,
+        bank_docs TEXT,
+        remarks TEXT,
+        status TEXT
+    )
+    """)
+    
+    # Bulk Insert Query
     insert_query = """
     INSERT INTO imports (
         supplier_name, item_name, brand_name, hs_code, quantity, unit, 
@@ -31,10 +54,10 @@ def insert_backup_data(df):
     """
     
     try:
-        # Dataframe ko list of lists mein convert karna database input ke liye
+        # Dataframe ko database compatibility ke liye list mein convert karna
         df_records = df.where(pd.notnull(df), None).values.tolist()
         
-        # Ek sath saari entries database mein load hongi
+        # Saari entries ek sath load karna
         cursor.executemany(insert_query, df_records)
         conn.commit()
         st.success("🎉 Haan, Yeh Poora Data Software Ke Database Mein Sahi Se Load Ho Chuka Hai!")
@@ -53,35 +76,29 @@ uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"], label_visibi
 
 if uploaded_file is not None:
     try:
-        # CSV Load karna
         df = pd.read_csv(uploaded_file)
         
-        # Column names ke aage peeche se fuzool spaces khatam karna
+        # Column names ke spaces khatam karna
         df.columns = df.columns.str.strip()
         
-        # Preview ke columns set karna aapke screenshot ke mutabik
+        # Jo columns aapki file mein hain unki list
         expected_cols = [
             'Supplier Name', 'Item Name', 'BRAND NAME', 'HS Code', 'Quantity', 'Unit', 
             'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 
             'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks', 'Status'
         ]
         
-        # Agar file mein columns missing hain to missing wale khud blank create ho jayein taake crash na ho
+        # Missing columns ko auto-handle karna
         for col in expected_cols:
             if col not in df.columns:
                 df[col] = None
                 
-        # Data ko isi order mein select karna taake database columns se match kare
         df_final = df[expected_cols].copy()
-        
-        # Empty rows ya Status column ke blanks ko safe handle karna
         df_final['Status'] = df_final['Status'].fillna('None')
         
-        # UI par preview show karna (Pehle 5 Rows)
         st.write("### 📊 File Preview (Pehle 5 Rows):")
         st.dataframe(df_final.head(5), use_container_width=True)
         
-        # Session state mein data save karna taake button trigger par reuse ho sake
         st.session_state['uploaded_df'] = df_final
         
     except Exception as e:
@@ -89,10 +106,10 @@ if uploaded_file is not None:
 
     st.write("---")
     
-    # 3. ACTION BUTTON (Jispe click karne se data load hoga aur dashboard pe dikhega)
+    # ACTION BUTTON
     if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo", use_container_width=True):
         if 'uploaded_df' in st.session_state:
-            with st.spinner("Database mein entries inject ho rahi hain..."):
+            with st.spinner("Database mein table create aur entries inject ho rahi hain..."):
                 insert_backup_data(st.session_state['uploaded_df'])
         else:
             st.warning("Pehle file sahi se upload hone dein.")
