@@ -220,7 +220,7 @@ st.sidebar.markdown("---")
 
 available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
-menu = st.sidebar.radio("Navigation Menu:", available_options)
+menu = st.sidebar.radio("Navigation Menu:", ["Dashboard", "Nayi Entry (Add)", "Update / Edit", "Manage Users / Accounts", "Backup Gateway"])
 
 # --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
 st.sidebar.markdown("---")
@@ -264,6 +264,24 @@ def parse_date(date_str):
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
+    st.header("📥 System Backup & Restore")
+    st.warning("⚠️ Dhyan dein: Nayi file upload karne se purana data delete ho jayega.")
+    
+    uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['csv', 'xlsx'])
+    
+    if uploaded_file is not None:
+        if st.button("🚀 Purana Data Delete karke Naya Load Karein"):
+            # Yahan wo logic jo maine pehle diya tha:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            c.execute("DELETE FROM shipments")
+            conn.commit()
+            df.to_sql('shipments', conn, if_exists='append', index=False)
+            st.success("✅ Data sync ho gaya!")
+            st.rerun()
     st.markdown('<div class="dashboard-header">Good morning, Haameem Control Center</div>', unsafe_allow_html=True)
     
     if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
