@@ -3,100 +3,80 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 
-# 1. ADVANCED EXECUTIVE THEME CONFIGURATION
+# 1. PAGE SETUP WITH CLASSIC ORANGE CORPORATE THEME
 st.set_page_config(
-    page_title="Zafar Logistics ERP — Enterprise Import Portal",
-    page_icon="⚡",
+    page_title="Zafar Logistics ERP - Import Management System",
+    page_icon="🍊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Professional Custom UI Injector (Ultra-Modern Glassmorphic Dark Edition)
+# Custom CSS Injection for the Original Orange Branding & Styling
 st.markdown("""
     <style>
-    /* Global App Settings */
+    /* Main Layout Styling */
     .stApp {
-        background-color: #0b0f19 !important;
+        background-color: #111827 !important;
     }
     h1, h2, h3 {
-        color: #f8fafc !important;
-        font-family: 'Inter', sans-serif;
-        font-weight: 700 !important;
-        letter-spacing: -0.5px;
-    }
-    p, span, label {
-        color: #94a3b8 !important;
-        font-family: 'Inter', sans-serif;
+        color: #ffffff !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
     
-    /* Premium Glass Metrics Cards */
+    /* Premium Orange Metric Summary Cards */
     div[data-testid="stMetric"] {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.5) 0%, rgba(15, 23, 42, 0.8) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: 12px;
-        padding: 20px 24px !important;
-        box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+        background-color: #1f2937 !important;
+        border-left: 5px solid #f97316 !important; /* Classic Orange Border */
+        border-radius: 6px;
+        padding: 15px 20px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
     div[data-testid="stMetricValue"] {
-        font-size: 32px !important;
-        font-weight: 800 !important;
-        color: #38bdf8 !important; /* Sky Blue Glow */
-        text-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+        font-size: 26px !important;
+        font-weight: bold !important;
+        color: #f97316 !important; /* Orange Metric Text */
     }
     div[data-testid="stMetricLabel"] {
+        color: #9ca3af !important;
+        font-size: 12px !important;
         text-transform: uppercase;
-        font-size: 11px !important;
-        letter-spacing: 1.5px;
-        color: #64748b !important;
-        font-weight: 600;
+        letter-spacing: 0.5px;
     }
 
-    /* Enterprise Custom Buttons */
+    /* Orange Gradient Action Buttons */
     .stButton>button {
-        background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
-        color: #ffffff !important;
+        background: linear-gradient(90deg, #ea580c 0%, #f97316 100%) !important;
+        color: white !important;
         border: none !important;
-        border-radius: 6px !important;
-        padding: 12px 28px !important;
-        font-size: 14px !important;
+        border-radius: 4px !important;
+        padding: 10px 20px !important;
         font-weight: 600 !important;
-        letter-spacing: 0.5px;
-        box-shadow: 0 4px 14px 0 rgba(29, 78, 216, 0.4) !important;
-        transition: all 0.25s ease-in-out !important;
-        width: 100%;
+        box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3) !important;
+        transition: all 0.2s ease;
     }
     .stButton>button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 6px 20px 0 rgba(29, 78, 216, 0.6) !important;
-        background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%) !important;
-    }
-
-    /* Input Field Styling */
-    .stTextInput>div>div>input {
-        background-color: #1e293b !important;
-        color: #f1f5f9 !important;
-        border: 1px solid #334155 !important;
-        border-radius: 6px !important;
-    }
-    .stTextInput>div>div>input:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 15px rgba(249, 115, 22, 0.5) !important;
     }
 
     /* Sidebar Clean Look */
     section[data-testid="stSidebar"] {
-        background-color: #0f172a !important;
-        border-right: 1px solid #1e293b !important;
+        background-color: #1f2937 !important;
+        border-right: 1px solid #374151 !important;
     }
     
-    /* Clean Separator */
-    hr {
-        border-color: #1e293b !important;
+    /* User Login Rights Box */
+    .user-rights-box {
+        background-color: #111827;
+        border: 1px solid #374151;
+        border-radius: 6px;
+        padding: 12px;
+        margin-bottom: 20px;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# AUTOMATED DATE TIMELINE CONFIGURATION ENGINE
+# DYNAMIC ETD / ETA AUTOMATED STATUS BADGE ENGINE
 def compute_dynamic_status(row):
     manual_status = str(row.get('status', '')).strip().lower()
     if manual_status in ['cleared', 'done', 'received', '🟢 cleared & done']:
@@ -122,7 +102,7 @@ def compute_dynamic_status(row):
     
     return "⚪ Pending"
 
-# DATA RECONCILIATION PIPELINE
+# RECONCILED DATABASE CONNECTOR
 def load_clean_data():
     conn = sqlite3.connect("zafar_database.db")
     try:
@@ -148,16 +128,16 @@ def insert_backup_records(df):
     cursor = conn.cursor()
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS imports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, supplier_name TEXT, item_name TEXT, brand_name TEXT,
-        hs_code TEXT, quantity REAL, unit TEXT, unit_price REAL, actual_costing TEXT,
-        total_lc_value REAL, currency TEXT, type TEXT, etd TEXT, eta TEXT, bl_lc_no TEXT,
-        bank_docs TEXT, remarks TEXT, status TEXT
+        id INTEGER PRIMARY KEY AUTOINCREMENT, company_name TEXT, bank_name TEXT, file_no TEXT, 
+        indenter TEXT, supplier_name TEXT, item_name TEXT, brand_name TEXT, hs_code TEXT, 
+        quantity REAL, unit TEXT, unit_price REAL, actual_costing TEXT, total_lc_value REAL, 
+        currency TEXT, type TEXT, etd TEXT, eta TEXT, bl_lc_no TEXT, bank_docs TEXT, remarks TEXT, status TEXT
     )
     """)
     insert_query = """
-    INSERT INTO imports (supplier_name, item_name, brand_name, hs_code, quantity, unit, 
-    unit_price, actual_costing, total_lc_value, currency, type, etd, eta, bl_lc_no, bank_docs, remarks, status) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO imports (company_name, bank_name, file_no, indenter, supplier_name, item_name, brand_name, 
+    hs_code, quantity, unit, unit_price, actual_costing, total_lc_value, currency, type, etd, eta, bl_lc_no, bank_docs, remarks, status) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     try:
         df_clean = df.copy()
@@ -175,95 +155,112 @@ def insert_backup_records(df):
     finally:
         conn.close()
 
-# --- SIDEBAR CONTROL CONTROL PANEL ---
-st.sidebar.markdown("<h2 style='color:#38bdf8 !important; font-size:22px; margin-bottom:0px;'>ZAFAR LOGISTICS</h2>", unsafe_allow_html=True)
-st.sidebar.markdown("<p style='font-size:12px; letter-spacing:1px; color:#475569;'>ENTERPRISE MANAGEMENT LOG</p>", unsafe_allow_html=True)
+# --- SIDEBAR CONTROL & USER RIGHTS PANEL ---
+st.sidebar.markdown("<h2 style='color:#f97316 !important; font-size:24px; margin-bottom:5px;'>Zafar ERP</h2>", unsafe_allow_html=True)
+st.sidebar.markdown("<p style='font-size:12px; color:#9ca3af;'>Logistics Management System</p>", unsafe_allow_html=True)
 st.sidebar.write("---")
 
+# 👤 USER LOGIN RIGHTS CONTAINER (WAPAS AA GAYA)
+st.sidebar.markdown(f"""
+    <div class="user-rights-box">
+        <p style="margin:0; font-size:11px; color:#9ca3af; font-weight:600; text-transform:uppercase;">Active User Profile</p>
+        <p style="margin:0; font-size:15px; color:#ffffff; font-weight:bold;">👤 Import Manager</p>
+        <p style="margin:5px 0 0 0; font-size:12px; color:#22c55e;">● Access Level: Full Admin Rights</p>
+    </div>
+""", unsafe_allow_html=True)
+
 app_mode = st.sidebar.radio(
-    "SELECT OPERATIONAL SYSTEM:",
-    ["📊 Global Analytics Terminal", "📥 Data Stream Gateway"]
+    "CHOOSE MODULE:",
+    ["📊 Operational Dashboard", "📥 Database Backup Gateway"]
 )
 
 live_df = load_clean_data()
-selected_item, selected_supplier = "All Items", "All Suppliers"
-
-if app_mode == "📊 Global Analytics Terminal" and not live_df.empty:
-    st.sidebar.write("---")
-    st.sidebar.markdown("<p style='font-size:11px; font-weight:600; letter-spacing:1px; color:#64748b;'>SEGMENT FILTERS</p>", unsafe_allow_html=True)
-    if 'item_name' in live_df.columns:
-        item_list = ["All Items"] + sorted(list(live_df['item_name'].dropna().unique()))
-        selected_item = st.sidebar.selectbox("Material Description:", item_list)
-    if 'supplier_name' in live_df.columns:
-        supplier_list = ["All Suppliers"] + sorted(list(live_df['supplier_name'].dropna().unique()))
-        selected_supplier = st.sidebar.selectbox("Supplier Corporate Profile:", supplier_list)
 
 # ==========================================
-# MODULE 1: PREMIUM INTELLIGENT DASHBOARD
+# MODULE 1: ORIGINAL ORANGE DASHBOARD
 # ==========================================
-if app_mode == "📊 Global Analytics Terminal":
-    st.markdown("<h1 style='font-size: 30px; font-weight:800; margin-bottom:5px;'>Logistics Intelligence Terminal</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#64748b; font-size:14px; margin-bottom:25px;'>Real-time database connection stabilized with system date protocols.</p>", unsafe_allow_html=True)
+if app_mode == "📊 Operational Dashboard":
+    st.markdown("<h1>📊 Import Logistics Dashboard</h1>", unsafe_allow_html=True)
+    st.write("Live system active.")
     
     if not live_df.empty:
-        filtered_df = live_df.copy()
-        if selected_item != "All Items":
-            filtered_df = filtered_df[filtered_df['item_name'] == selected_item]
-        if selected_supplier != "All Suppliers":
-            filtered_df = filtered_df[filtered_df['supplier_name'] == selected_supplier]
-            
-        # Sleek Search Interface
-        search_query = st.text_input("⚡ Smart Filter Lookup Index", placeholder="Type Supplier, Chemical Item, BL/LC Number or HS Code instantly...")
-        if search_query:
-            filtered_df = filtered_df[
-                filtered_df['supplier_name'].astype(str).str.contains(search_query, case=False) |
-                filtered_df['item_name'].astype(str).str.contains(search_query, case=False) |
-                filtered_df['bl_lc_no'].astype(str).str.contains(search_query, case=False) |
-                filtered_df['hs_code'].astype(str).str.contains(search_query, case=False)
-            ]
-
-        st.write("##")
+        # 🎯 ADVANCED FILTERS SECTION: COMPANY & BANK-WISE (WAPAS AA GAYE)
+        st.markdown("### 🔍 Advanced Data Filters")
+        fl_col1, fl_col2, fl_col3 = st.columns(3)
         
-        # High Visibility Glass Metrics KPI Panels
+        with fl_col1:
+            company_list = ["All Companies"] + sorted(list(live_df['company_name'].dropna().unique())) if 'company_name' in live_df.columns else ["All Companies"]
+            selected_company = st.selectbox("Select Company:", company_list)
+            
+        with fl_col2:
+            bank_list = ["All Banks"] + sorted(list(live_df['bank_name'].dropna().unique())) if 'bank_name' in live_df.columns else ["All Banks"]
+            selected_bank = st.selectbox("Select Bank Branch:", bank_list)
+            
+        with fl_col3:
+            item_list = ["All Items"] + sorted(list(live_df['item_name'].dropna().unique())) if 'item_name' in live_df.columns else ["All Items"]
+            selected_item = st.selectbox("Select Material/Item:", item_list)
+
+        # Applying Filters to DataFrame
+        filtered_df = live_df.copy()
+        if selected_company != "All Companies" and 'company_name' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['company_name'] == selected_company]
+        if selected_bank != "All Banks" and 'bank_name' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['bank_name'] == selected_bank]
+        if selected_item != "All Items" and 'item_name' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['item_name'] == selected_item]
+
+        # Global Lookup Search Box
+        search_query = st.text_input("🔍 Global Text Query Lookup (Supplier, Item, File No, BL/LC No...)", "")
+        if search_query:
+            search_fields = ['supplier_name', 'item_name', 'bl_lc_no', 'hs_code', 'file_no']
+            mask = pd.Series(False, index=filtered_df.index)
+            for field in search_fields:
+                if field in filtered_df.columns:
+                    mask |= filtered_df[field].astype(str).str.contains(search_query, case=False)
+            filtered_df = filtered_df[mask]
+
+        st.write("---")
+
+        # Original Metrics KPI Cards
         m1, m2, m3 = st.columns(3)
         with m1:
-            st.metric("Total Active Shipments", f"{len(filtered_df)}")
+            st.metric("Total Tracked Shipments", f"{len(filtered_df)}")
         with m2:
-            calculated_lc_sum = filtered_df['total_lc_value'].sum() if 'total_lc_value' in filtered_df.columns else 0.0
-            st.metric("Aggregate LC Exposure", f"${calculated_lc_sum:,.2f}")
+            total_lc = filtered_df['total_lc_value'].sum() if 'total_lc_value' in filtered_df.columns else 0.0
+            st.metric("Total LC Value (USD)", f"${total_lc:,.2f}")
         with m3:
-            calculated_qty_sum = filtered_df['quantity'].sum() if 'quantity' in filtered_df.columns else 0.0
-            st.metric("Consolidated Volumetric Mass", f"{calculated_qty_sum:,.2f} Units")
+            total_qty = filtered_df['quantity'].sum() if 'quantity' in filtered_df.columns else 0.0
+            st.metric("Consolidated Quantity", f"{total_qty:,.2f} Units")
             
-        st.write("##")
+        st.write("---")
         
-        # Table Formatter mapping
+        # Exact Column View Structure Mapping
         display_cols = {
-            'id': 'ID', 'supplier_name': 'Supplier Profile', 'item_name': 'Material Description',
-            'brand_name': 'Brand Label', 'hs_code': 'HS Code', 'Display_Quantity': 'Volumetric Mass',
-            'Display_Unit_Price': 'Unit Cost', 'actual_costing': 'Actual Costing (PKR)',
-            'Display_LC_Value': 'Total Valued LC', 'currency': 'Curr', 'type': 'Shipping Type',
-            'etd': 'ETD Logistics', 'eta': 'ETA Port', 'bl_lc_no': 'BL / LC Reference ID',
-            'bank_docs': 'Bank Docs', 'remarks': 'Internal Notes', 'status': 'Automated Status'
+            'id': 'ID', 'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No',
+            'indenter': 'Indenter', 'supplier_name': 'Supplier Name', 'item_name': 'Item Name',
+            'brand_name': 'BRAND NAME', 'hs_code': 'HS Code', 'Display_Quantity': 'Quantity',
+            'Display_Unit_Price': 'Unit Price', 'actual_costing': 'Actual Costing (PKR)',
+            'Display_LC_Value': 'Total LC Value', 'currency': 'Currency', 'type': 'Type',
+            'etd': 'ETD', 'eta': 'ETA', 'bl_lc_no': 'BL / LC No', 'bank_docs': 'Bank Docs',
+            'remarks': 'Remarks', 'status': 'Status'
         }
         
         existing_cols = [c for c in display_cols.keys() if c in filtered_df.columns]
         ui_table = filtered_df[existing_cols].rename(columns=display_cols)
         
-        st.markdown("<h3 style='font-size:18px;'>📋 Live Shipment Reconciliation Matrix</h3>", unsafe_allow_html=True)
+        st.markdown("### 📋 Active Shipments Log Records")
         st.dataframe(ui_table, use_container_width=True)
     else:
-        st.warning("⚠️ No active shipments parsed. Access the Data Stream Gateway to inject corporate data backup records.")
+        st.warning("⚠️ Database main koi data nahi mila. Kindly backup module se file upload karein.")
 
 # ==========================================
-# MODULE 2: PREMIUM DATA STREAMING PORTAL
+# MODULE 2: DATABASE BACKUP GATEWAY
 # ==========================================
-elif app_mode == "📥 Data Stream Gateway":
-    st.markdown("<h1 style='font-size: 30px; font-weight:800; margin-bottom:5px;'>Data Encryption & Stream Gateway</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#64748b; font-size:14px; margin-bottom:25px;'>Import system backups (.csv format) directly to structure indices.</p>", unsafe_allow_html=True)
+elif app_mode == "📥 Database Backup Gateway":
+    st.markdown("<h1>📥 System Backup & Restore Gateway</h1>", unsafe_allow_html=True)
+    st.info("💡 Is gateway se aap apni download ki hui purani system backup excel (CSV) file ko chalte hue database mein load kar sakte hain.")
     
-    st.write("---")
-    uploaded_file = st.file_uploader("Upload System Backup File:", type=["csv"], label_visibility="visible")
+    uploaded_file = st.file_uploader("Upload System Backup File (.csv):", type=["csv"])
     
     if uploaded_file is not None:
         try:
@@ -271,9 +268,9 @@ elif app_mode == "📥 Data Stream Gateway":
             df_file.columns = df_file.columns.str.strip()
             
             target_schema = [
-                'Supplier Name', 'Item Name', 'BRAND NAME', 'HS Code', 'Quantity', 'Unit', 
-                'Unit Price', 'Actual Costing (PKR)', 'Total LC Value', 'Currency', 'Type', 
-                'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks', 'Status'
+                'Company Name', 'Bank Name', 'File No', 'Indenter', 'Supplier Name', 'Item Name', 
+                'BRAND NAME', 'HS Code', 'Quantity', 'Unit', 'Unit Price', 'Actual Costing (PKR)', 
+                'Total LC Value', 'Currency', 'Type', 'ETD', 'ETA', 'BL / LC No', 'Bank Docs', 'Remarks', 'Status'
             ]
             
             for column_name in target_schema:
@@ -283,15 +280,25 @@ elif app_mode == "📥 Data Stream Gateway":
             final_import_dataframe = df_file[target_schema].copy()
             final_import_dataframe['Status'] = final_import_dataframe['Status'].fillna('None')
             
-            st.markdown("<h3 style='font-size:16px; margin-top:20px;'>🔍 Inbound Gateway Stream Preview (Top 5 Blocks)</h3>", unsafe_allow_html=True)
+            st.markdown("### 📊 Inbound Backup Data Preview:")
             st.dataframe(final_import_dataframe.head(5), use_container_width=True)
             
-            st.write("##")
-            if st.button("🚀 EXECUTE SECURE DATABASE INJECTION TRANSIT"):
-                with st.spinner("Compiling structural constraints and deploying calculation matrices..."):
-                    success = insert_backup_records(final_import_dataframe)
+            if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo"):
+                with st.spinner("Processing rows and injecting calculations..."):
+                    # Map Excel headers to internal DB lowercase column schema
+                    db_mapped_df = final_import_dataframe.rename(columns={
+                        'Company Name': 'company_name', 'Bank Name': 'bank_name', 'File No': 'file_no',
+                        'Indenter': 'indenter', 'Supplier Name': 'supplier_name', 'Item Name': 'item_name',
+                        'BRAND NAME': 'brand_name', 'HS Code': 'hs_code', 'Quantity': 'quantity',
+                        'Unit': 'unit', 'Unit Price': 'unit_price', 'Actual Costing (PKR)': 'actual_costing',
+                        'Total LC Value': 'total_lc_value', 'Currency': 'currency', 'Type': 'type',
+                        'ETD': 'etd', 'ETA': 'eta', 'BL / LC No': 'bl_lc_no', 'Bank Docs': 'bank_docs',
+                        'Remarks': 'remarks', 'Status': 'status'
+                    })
+                    
+                    success = insert_backup_records(db_mapped_df)
                     if success:
                         st.balloons()
-                        st.success("🎉 Process complete. Data structure verified and committed to terminal.")
+                        st.success("🎉 Mubarak ho! Saara backup data safely inject ho chuka hai. Wapas Operational Dashboard par ja kar dekh lein.")
         except Exception as error:
             st.error(f"Critical Injection Interrupt: {str(error)}")
