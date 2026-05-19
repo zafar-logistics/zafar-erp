@@ -6,15 +6,25 @@ from datetime import datetime
 # PAGE CONFIGURATION
 st.set_page_config(page_title="Zafar ERP - Home", layout="wide")
 
-# 1. DATABASE SE DATA READ KARNE KA FUNCTION (Dashboard Pe Dikhane Ke Liye)
+# 1. DATABASE SE DATA READ KARNE KA FUNCTION (With Data Type Cleaning)
 def load_dashboard_data():
     conn = sqlite3.connect("zafar_database.db")
     try:
-        # Database se tammam data uthakar dataframe mein lana
         df = pd.read_sql_query("SELECT * FROM imports ORDER BY id DESC", conn)
+        if not df.empty:
+            # Commas aur text safai taake calculation mein crash na ho
+            if 'total_lc_value' in df.columns:
+                df['total_lc_value'] = df['total_lc_value'].astype(str).str.replace(',', '').str.strip()
+                df['total_lc_value'] = pd.to_numeric(df['total_lc_value'], errors='coerce').fillna(0.0)
+            if 'quantity' in df.columns:
+                df['quantity'] = df['quantity'].astype(str).str.replace(',', '').str.strip()
+                df['quantity'] = pd.to_numeric(df['quantity'], errors='coerce').fillna(0.0)
+            if 'unit_price' in df.columns:
+                df['unit_price'] = df['unit_price'].astype(str).str.replace(',', '').str.strip()
+                df['unit_price'] = pd.to_numeric(df['unit_price'], errors='coerce').fillna(0.0)
         return df
     except Exception:
-        return pd.DataFrame()  # Agar table khali ho ya na bani ho
+        return pd.DataFrame()
     finally:
         conn.close()
 
@@ -23,7 +33,6 @@ def insert_backup_data(df):
     conn = sqlite3.connect("zafar_database.db")
     cursor = conn.cursor()
     
-    # Table structure auto-create karna agar na bani ho
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS imports (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -56,14 +65,18 @@ def insert_backup_data(df):
     """
     
     try:
-        df_records = df.where(pd.notnull(df), None).values.tolist()
+        # Data insert karne se pehle bhi data ko clean kar letay hain safe side ke liye
+        df_clean = df.copy()
+        for col in ['Quantity', 'Unit Price', 'Total LC Value']:
+            if col in df_clean.columns:
+                df_clean[col] = df_clean[col].astype(str).str.replace(',', '').str.strip()
+                df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce').fillna(0.0)
+
+        df_records = df_clean.where(pd.notnull(df_clean), None).values.tolist()
         cursor.executemany(insert_query, df_records)
         conn.commit()
         
-        # Success message aur session state clear karna taake naya data refresh ho sake
         st.success("🎉 Haan, Yeh Poora Data Database Mein Sahi Se Load Ho Chuka Hai!")
-        
-        # Auto-switch back to dashboard tab logic
         st.session_state['active_tab'] = 0
         st.rerun()
         
@@ -73,37 +86,33 @@ def insert_backup_data(df):
         conn.close()
 
 
-# --- SCREEN NAVIGATION SYSTEM (TABS) ---
-# Active tab ko track karne ke liye session state initialization
-if 'active_tab' not in st.session_state:
-    st.session_state['active_tab'] = 0
-
-# Do main buttons ya tabs screen ke top par dene ke liye
+# --- NAVIGATION TABS ---
 tab_dashboard, tab_backup = st.tabs(["📊 Main Dashboard", "📥 System Backup & Restore"])
 
 
 # ==========================================
-# TAB 1: MAIN DASHBOARD
+# TAB 1: MAIN DASHBOARD (Fixed Redacted ValueError)
 # ==========================================
 with tab_dashboard:
     st.title("📊 Business Import Dashboard")
     st.write("Aapka database se loaded live data neeche show ho raha hai:")
     
-    # Live data database se load karke screen par dikhana
     live_df = load_dashboard_data()
     
     if not live_df.empty:
-        # Total Summary Cards
+        # Total Summary Cards - Formatted and Cleaned Values
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Shipments Loaded", len(live_df))
+            st.metric("Total Shipments Loaded", f"{len(live_df)}")
         with col2:
-            st.metric("Total LC Value (USD)", f"{live_df['total_lc_value'].sum():,.2f}" if 'total_lc_value' in live_df.columns else "0.00")
+            total_lc = live_df['total_lc_value'].sum() if 'total_lc_value' in live_df.columns else 0.0
+            st.metric("Total LC Value (USD)", f"${total_lc:,.2f}")
         with col3:
-            st.metric("Total Quantity", f"{live_df['quantity'].sum():,.2f} KG" if 'quantity' in live_df.columns else "0 KG")
+            total_qty = live_df['quantity'].sum() if 'quantity' in live_df.columns else 0.0
+            st.metric("Total Quantity", f"{total_qty:,.2f} KG")
             
         st.write("---")
-        # Mukammal Data Table Dashboard Pe
+        # Live Data Table
         st.dataframe(live_df, use_container_width=True)
     else:
         st.warning("⚠️ Dashboard par dikhane ke liye koi data nahi mila. Pehle 'System Backup' tab par jaakar file upload karein.")
@@ -147,7 +156,6 @@ with tab_backup:
             
         st.write("---")
         
-        # BUTTON JO DATA SAVE KARKE AUTOMATIC DASHBOARD PAR LE JAYEGA
         if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo", use_container_width=True):
             if 'uploaded_df' in st.session_state:
                 with st.spinner("Database mein entries inject ho rahi hain aur dashboard refresh ho raha hai..."):
