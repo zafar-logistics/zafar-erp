@@ -43,19 +43,41 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# STATUS TO VISUAL BADGE CONVERSION FUNCTION
-def format_status_badge(val):
-    status_str = str(val).strip().lower()
-    if status_str in ['none', '', 'pending']:
-        return "⚪ Pending"
-    elif status_str in ['shipped', 'in transit', 'etd']:
-        return "🔵 In Transit"
-    elif status_str in ['arrived', 'port', 'eta']:
-        return "🟠 Arrived at Port"
-    elif status_str in ['cleared', 'done', 'received']:
+# DYNAMIC ETD / ETA AUTOMATED STATUS BADGE CALCULATION
+def compute_dynamic_status(row):
+    # Check if manually cleared or done first
+    manual_status = str(row.get('status', '')).strip().lower()
+    if manual_status in ['cleared', 'done', 'received', '🟢 cleared & done']:
         return "🟢 Cleared & Done"
-    else:
-        return f"⚫ {val}"
+        
+    today = datetime.now().date()
+    
+    # Dates extraction and flexible parsing (Formats: '30-Apr-26', '2026-04-30' etc)
+    etd_date = None
+    eta_date = None
+    
+    for fmt in ('%d-%b-%y', '%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y'):
+        if etd_date is None and pd.notnull(row.get('etd')) and str(row['etd']).strip() != 'None':
+            try:
+                etd_date = datetime.strptime(str(row['etd']).strip(), fmt).date()
+            except ValueError:
+                pass
+        if eta_date is None and pd.notnull(row.get('eta')) and str(row['eta']).strip() != 'None':
+            try:
+                eta_date = datetime.strptime(str(row['eta']).strip(), fmt).date()
+            except ValueError:
+                pass
+
+    # Logic Implementation based on exact dates timeline
+    if eta_date and eta_date <= today:
+        return "🟠 Arrived at Port"
+    elif etd_date and etd_date <= today and (eta_date is None or eta_date > today):
+        return "🔵 In Transit"
+    elif etd_date and etd_date > today:
+        return "⚪ Pending"
+    
+    # Fallback option if date format is invalid or empty
+    return "⚪ Pending"
 
 # 2. DATA PROCESSING FUNCTIONS WITH ROBUST DATATYPE CLEANSING
 def load_clean_data():
@@ -74,9 +96,8 @@ def load_clean_data():
             df['Display_Quantity'] = df.apply(lambda row: f"{row['quantity']:,.2f} {row['unit'] if 'unit' in row else 'KG'}", axis=1)
             df['Display_Unit_Price'] = df['unit_price'].apply(lambda x: f"${x:,.2f}")
             
-            # Apply color status badges to data
-            if 'status' in df.columns:
-                df['status'] = df['status'].apply(format_status_badge)
+            # Trigger our newly built dynamic calculation logic per row
+            df['status'] = df.apply(compute_dynamic_status, axis=1)
         return df
     except Exception:
         return pd.DataFrame()
@@ -138,7 +159,7 @@ def insert_backup_records(df):
 
 # --- SIDEBAR CONTROL PANEL ---
 st.sidebar.title("⚡ Control Center")
-st.sidebar.write("Zafar Logistics ERP v2.5")
+st.sidebar.write("Zafar Logistics ERP v2.6")
 st.sidebar.write("---")
 
 # Main Navigation Menu in Sidebar
