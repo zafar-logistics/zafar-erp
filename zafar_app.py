@@ -247,7 +247,7 @@ UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
 def parse_date(date_str):
-    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan", "Nat"]: return None
+    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan", "Nat", "none"]: return None
     for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
         try: return datetime.strptime(str(date_str).strip(), fmt)
         except: pass
@@ -292,21 +292,20 @@ if menu == "📊 Dashboard":
         all_live_alerts = []
         total_count = len(df['File No'].unique())
 
-        # 🌟 BULKSTATUS LOGIC FIXED (No more None values)
+        # 🌟 BULK DYNAMIC STATUS LOGIC (Always recalculates dynamically based on dates)
         def calculated_status(row):
             f_no = str(row['File No']).strip()
             if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
             
             etd_dt = parse_date(row['ETD'])
+            box_eta = str(row['ETA']).strip().lower()
             eta_dt = parse_date(row['ETA'])
             
-            # Real-time alert trigger checks
             if etd_dt and etd_dt.date() == today.date():
                 all_live_alerts.append(f"🚢 File No: {f_no} — AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
 
-            # Clean calculation checks 
             if eta_dt:
                 if (today - eta_dt).days >= 7: return "Complete"
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
@@ -315,6 +314,8 @@ if menu == "📊 Dashboard":
                 if etd_dt > today: return "LC Opened"
                 return "In Transit"
                 
+            # If ETA text is written explicitly as pending or left blank
+            if box_eta in ["pending", "", "-", "none"]: return "LC Opened"
             return "LC Opened"
 
         df['Status'] = df.apply(calculated_status, axis=1)
@@ -351,8 +352,6 @@ if menu == "📊 Dashboard":
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Backup</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
-            
-            # 🌟 SYNTAX ERROR FIXED HERE (Using proper pandas export data mapping strings)
             csv_string_data = df[safe_display_cols_clean].to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="🟢 Export Active Excel Sheet", 
@@ -585,7 +584,6 @@ elif menu == "📥 Upload Backup (Excel)":
                         
                         it_name = str(row.get('Item Name', '-'))
                         if it_name and it_name != "-":
-                            # 🌟 Auto handle lowercase 'BRAND' or standard 'Brand Name' headers seamlessly
                             it_brand = str(row.get('Brand Name', row.get('BRAND', '-')))
                             it_hs = str(row.get('HS Code', '-'))
                             it_qty = str(row.get('Quantity', '0'))
