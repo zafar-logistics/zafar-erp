@@ -43,6 +43,20 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# STATUS TO VISUAL BADGE CONVERSION FUNCTION
+def format_status_badge(val):
+    status_str = str(val).strip().lower()
+    if status_str in ['none', '', 'pending']:
+        return "⚪ Pending"
+    elif status_str in ['shipped', 'in transit', 'etd']:
+        return "🔵 In Transit"
+    elif status_str in ['arrived', 'port', 'eta']:
+        return "🟠 Arrived at Port"
+    elif status_str in ['cleared', 'done', 'received']:
+        return "🟢 Cleared & Done"
+    else:
+        return f"⚫ {val}"
+
 # 2. DATA PROCESSING FUNCTIONS WITH ROBUST DATATYPE CLEANSING
 def load_clean_data():
     conn = sqlite3.connect("zafar_database.db")
@@ -59,6 +73,10 @@ def load_clean_data():
             df['Display_LC_Value'] = df['total_lc_value'].apply(lambda x: f"${x:,.2f}")
             df['Display_Quantity'] = df.apply(lambda row: f"{row['quantity']:,.2f} {row['unit'] if 'unit' in row else 'KG'}", axis=1)
             df['Display_Unit_Price'] = df['unit_price'].apply(lambda x: f"${x:,.2f}")
+            
+            # Apply color status badges to data
+            if 'status' in df.columns:
+                df['status'] = df['status'].apply(format_status_badge)
         return df
     except Exception:
         return pd.DataFrame()
@@ -120,7 +138,7 @@ def insert_backup_records(df):
 
 # --- SIDEBAR CONTROL PANEL ---
 st.sidebar.title("⚡ Control Center")
-st.sidebar.write("Zafar Logistics ERP v2.4")
+st.sidebar.write("Zafar Logistics ERP v2.5")
 st.sidebar.write("---")
 
 # Main Navigation Menu in Sidebar
@@ -168,7 +186,7 @@ if app_mode == "📊 Live Dashboard & Search":
                 filtered_df['hs_code'].astype(str).str.contains(search_query, case=False)
             ]
 
-        # Professional High-Visibility KPI Summary Blocks (FIXED LINE 176 TYPO)
+        # Professional High-Visibility KPI Summary Blocks
         c1, c2, c3 = st.columns(3)
         with c1:
             st.metric("Total Active Shipments", f"{len(filtered_df)}")
