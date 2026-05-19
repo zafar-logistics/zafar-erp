@@ -67,7 +67,7 @@ def get_hs_codes_for_item(item_name):
         return []
 
 # --- INTERFACE SETUP ---
-st.set_page_config(page_title="Zafar Logistics ERP", layout="wide")
+st.set_page_config(page_title="HAAMEEM - Logistics Master Dashboard", layout="wide")
 
 if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "username" not in st.session_state: st.session_state["username"] = ""
@@ -144,13 +144,13 @@ st.markdown("""
         }
         
         .stDownloadButton>button {
-            background-color: #ffffff !important;
-            color: #1e293b !important;
-            border: 1px solid #e2e8f0 !important;
+            background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%) !important;
+            color: #ffffff !important;
+            border: none !important;
             border-radius: 10px !important;
             font-weight: 600 !important;
-            padding: 8px 16px !important;
-            box-shadow: 0px 2px 4px rgba(0,0,0,0.02);
+            padding: 10px 20px !important;
+            box-shadow: 0px 4px 10px rgba(221, 107, 32, 0.2);
             transition: all 0.2s ease;
         }
         
@@ -247,7 +247,7 @@ UNITS = ["KG", "MT", "DRUMS", "BAGS"]
 ROLES = ["Admin", "Manager", "Viewer"]
 
 def parse_date(date_str):
-    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan"]: return None
+    if not date_str or str(date_str).strip() in ["", "-", "Pending", "None", "nan", "Nat"]: return None
     for fmt in ('%d-%b-%y', '%d-%b-%Y', '%Y-%m-%d', '%d-%m-%Y'):
         try: return datetime.strptime(str(date_str).strip(), fmt)
         except: pass
@@ -255,7 +255,7 @@ def parse_date(date_str):
 
 # --- 1. DASHBOARD ---
 if menu == "📊 Dashboard":
-    st.markdown('<div class="dashboard-header">Good morning, Haameem Control Center</div>', unsafe_allow_html=True)
+    st.markdown('<h2 style="color: #2c3e50; font-family: Georgia, serif; font-weight: bold; margin-top: -20px; margin-bottom: 20px;">📋 HAAMEEM - Logistics Master Dashboard</h2>', unsafe_allow_html=True)
     
     if st.session_state["username"] == "zafar" or st.session_state["user_role"] == "Admin":
         allowed_display_cols = ALL_AVAILABLE_COLUMNS
@@ -292,26 +292,30 @@ if menu == "📊 Dashboard":
         all_live_alerts = []
         total_count = len(df['File No'].unique())
 
+        # 🌟 BULKSTATUS LOGIC FIXED (No more None values)
         def calculated_status(row):
             f_no = str(row['File No']).strip()
             if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
-            etd_dt = parse_date(row['ETD'])
-            text_eta = row.get('ETA', '-') if 'ETA' in row else '-'
-            eta_dt = parse_date(text_eta)
             
-            if etd_dt and etd_dt.year == today.year and etd_dt.month == today.month and etd_dt.day == today.day:
+            etd_dt = parse_date(row['ETD'])
+            eta_dt = parse_date(row['ETA'])
+            
+            # Real-time alert trigger checks
+            if etd_dt and etd_dt.date() == today.date():
                 all_live_alerts.append(f"🚢 File No: {f_no} — AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
 
-            if eta_dt and (today - eta_dt).days >= 7: return "Complete"
+            # Clean calculation checks 
             if eta_dt:
+                if (today - eta_dt).days >= 7: return "Complete"
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
-                if eta_dt > today + timedelta(days=6): return "Shipment on way"
+                return "In Transit"
             if etd_dt:
-                if etd_dt > today: return "Shipment not shipped"
-                if etd_dt <= today: return "Shipped"
-            return "LC Opening"
+                if etd_dt > today: return "LC Opened"
+                return "In Transit"
+                
+            return "LC Opened"
 
         df['Status'] = df.apply(calculated_status, axis=1)
         done_count = len(df[df['Status'] == 'Complete']['File No'].unique())
@@ -345,17 +349,25 @@ if menu == "📊 Dashboard":
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
-            st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Backup</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
-            st.download_button(label="📥 Export Master Sheet to Excel", data=df[safe_display_cols_clean].to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            
+            # 🌟 SYNTAX ERROR FIXED HERE (Using proper pandas export data mapping strings)
+            csv_string_data = df[safe_display_cols_clean].to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="🟢 Export Active Excel Sheet", 
+                data=csv_string_data, 
+                file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", 
+                mime="text/csv"
+            )
             st.markdown('</div>', unsafe_allow_html=True)
             
         with c_top2:
-            st.markdown('<div class="custom-card"><div class="card-title">🔍 Quick Filters Control</div>', unsafe_allow_html=True)
+            st.markdown('<div class="custom-card"><div class="card-title">🔍 Quick Filters Control Center</div>', unsafe_allow_html=True)
             f1, f2, f3 = st.columns(3)
             sel_comp = f1.multiselect("Import Entity:", COMPANIES)
             sel_bank = f2.multiselect("Opening Bank:", BANKS)
-            search = f3.text_input("Global Search Keywords:", placeholder="Type to filter...")
+            search = f3.text_input("Global Search Keywords:", placeholder="Type to filter data...")
             st.markdown('</div>', unsafe_allow_html=True)
 
         if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
@@ -371,11 +383,11 @@ if menu == "📊 Dashboard":
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;'
-                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;'
-                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;'
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;'
-                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;'
+                if row['Status'] == 'Arrived': color = 'background-color: #e6fffa; color: #01695c; font-weight: 600;'
+                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.8;'
+                elif row['Status'] == 'Query': color = 'background-color: #fff5f5; color: #e53e3e;'
+                elif row['Status'] == 'In Transit': color = 'background-color: #ebf8ff; color: #2b6cb0; font-weight: 500;'
+                elif row['Status'] == 'LC Opened': color = 'background-color: #fffaf0; color: #dd6b20;'
             return [color] * len(row)
 
         try: st.dataframe(df_display.style.apply(style_rows, axis=1), use_container_width=True)
@@ -519,7 +531,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
                 conn.commit(); st.success("✅ Records updated successfully!"); st.rerun()
 
-# --- 🚀 4. NEW FEATURE: UPLOAD EXCEL BACKUP TAB ---
+# --- 4. UPLOAD EXCEL BACKUP TAB ---
 elif menu == "📥 Upload Backup (Excel)":
     st.subheader("📥 Upload System Backup Excel File (.csv)")
     st.info("💡 Yeh portal aapki purani download ki hui Excel (CSV) file ko read karke chalte hue software ke database mein saari entries ek sath load kar dega.")
@@ -528,13 +540,16 @@ elif menu == "📥 Upload Backup (Excel)":
     
     if uploaded_file is not None:
         try:
-            # Load CSV file into temporary memory dataframe
-            backup_df = pd.read_csv(uploaded_file)
+            try:
+                backup_df = pd.read_csv(uploaded_file, encoding='utf-8')
+            except UnicodeDecodeError:
+                uploaded_file.seek(0)
+                backup_df = pd.read_csv(uploaded_file, encoding='latin1')
+            
             st.write("📊 **File Preview (Pehle 5 Rows):**")
             st.dataframe(backup_df.head(5), use_container_width=True)
             
-            # Map clean columns checks
-            required_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name']
+            required_cols = ['File No', 'Item Name']
             missing_cols = [c for c in required_cols if c not in backup_df.columns]
             
             if missing_cols:
@@ -546,9 +561,8 @@ elif menu == "📥 Upload Backup (Excel)":
                     
                     for index, row in backup_df.iterrows():
                         f_no = str(row.get('File No', '')).strip()
-                        if not f_no or f_no == "-": continue
+                        if not f_no or f_no == "-" or f_no == "nan" or f_no == "None": continue
                         
-                        # Check columns safely matching schema values
                         comp = str(row.get('Company Name', '-'))
                         bnk = str(row.get('Bank Name', '-'))
                         ind = str(row.get('Indenter', '-'))
@@ -562,19 +576,17 @@ elif menu == "📥 Upload Backup (Excel)":
                         b_docs = str(row.get('Bank Docs', 'Pending'))
                         rem = str(row.get('Remarks', '-'))
                         
-                        # Save main file entry cleanly if unique
                         try:
                             c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
                                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
                                       (comp, bnk, ind, f_no, shp, "-", val, curr, stype, etd_val, eta_val, bl_val, b_docs, rem))
                         except sqlite3.IntegrityError:
-                            # File No already exists, skip main entry to prevent software crash
                             duplicate_count += 1
                         
-                        # Add items rows for item mapping
                         it_name = str(row.get('Item Name', '-'))
                         if it_name and it_name != "-":
-                            it_brand = str(row.get('Brand Name', '-'))
+                            # 🌟 Auto handle lowercase 'BRAND' or standard 'Brand Name' headers seamlessly
+                            it_brand = str(row.get('Brand Name', row.get('BRAND', '-')))
                             it_hs = str(row.get('HS Code', '-'))
                             it_qty = str(row.get('Quantity', '0'))
                             it_unit = str(row.get('Unit', 'KG'))
@@ -590,6 +602,7 @@ elif menu == "📥 Upload Backup (Excel)":
                     conn.commit()
                     st.success(f"🎉 Mubarak ho! File ka data kamyabi se restore ho gaya hai. Total processed rows: {success_count}. Duplicated skipped files: {duplicate_count}")
                     st.balloons()
+                    st.rerun()
         except Exception as e:
             st.error(f"❌ File read karne mein error aaya. Details: {e}")
 
