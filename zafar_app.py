@@ -73,7 +73,7 @@ if "logged_in" not in st.session_state: st.session_state["logged_in"] = False
 if "username" not in st.session_state: st.session_state["username"] = ""
 if "user_role" not in st.session_state: st.session_state["user_role"] = ""
 
-# --- 🚀 GLOBAL INTERACTIVE GLASSMORPHIC INTERFACE INJECTOR ---
+# --- GLOBAL INTERACTIVE GLASSMORPHIC INTERFACE INJECTOR ---
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
@@ -83,7 +83,6 @@ st.markdown("""
             font-family: 'Plus Jakarta Sans', sans-serif;
         }
         
-        /* Dashboard Top Header */
         .dashboard-header {
             font-family: 'Plus Jakarta Sans', sans-serif;
             color: #0f172a;
@@ -93,7 +92,6 @@ st.markdown("""
             margin-top: -15px;
         }
         
-        /* Glassmorphism Summary Cards Layout */
         .glass-card-wrapper {
             display: flex;
             gap: 20px;
@@ -129,7 +127,6 @@ st.markdown("""
             font-weight: 500;
         }
         
-        /* Modern Container Card Boxes */
         .custom-card {
             background: #ffffff;
             padding: 20px;
@@ -146,7 +143,6 @@ st.markdown("""
             margin-bottom: 15px;
         }
         
-        /* Branded Clean Custom Buttons UI */
         .stDownloadButton>button {
             background-color: #ffffff !important;
             color: #1e293b !important;
@@ -157,12 +153,7 @@ st.markdown("""
             box-shadow: 0px 2px 4px rgba(0,0,0,0.02);
             transition: all 0.2s ease;
         }
-        .stDownloadButton>button:hover {
-            background-color: #f8fafc !important;
-            border-color: #cbd5e1 !important;
-        }
         
-        /* Main Grid Dataframe Header Theme Customization */
         div[data-testid="stDataFrame"] table th {
             background-color: #f8fafc !important;
             color: #475569 !important;
@@ -173,7 +164,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 🔑 HAAMEEM BRANDED LOGIN SCREEN ---
+# --- LOGIN SCREEN ---
 if not st.session_state["logged_in"]:
     st.markdown("""
         <style>
@@ -213,16 +204,16 @@ if not st.session_state["logged_in"]:
         st.markdown("</div></div>", unsafe_allow_html=True)
     st.stop()
 
-# --- 📊 MASTER APP SECTION (AFTER LOGGED IN) ---
+# --- SIDEBAR MENU ---
 st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-bottom:0px;'>👤 {st.session_state['username'].upper()}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
-available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
+available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit", "📥 Upload Backup (Excel)"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-# --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
+# --- HISTORY GRAPH ---
 st.sidebar.markdown("---")
 st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
 all_items_saved = get_distinct_values("item_name", "shipment_items")
@@ -298,17 +289,12 @@ if menu == "📊 Dashboard":
 
     if not df.empty:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
         all_live_alerts = []
         total_count = len(df['File No'].unique())
-        done_count = 0
-        pending_count = 0
 
         def calculated_status(row):
-            global done_count, pending_count
             f_no = str(row['File No']).strip()
             if f_no == "" or f_no == "-" or pd.isna(row['File No']) or f_no == "None": return "Query"
-            
             etd_dt = parse_date(row['ETD'])
             text_eta = row.get('ETA', '-') if 'ETA' in row else '-'
             eta_dt = parse_date(text_eta)
@@ -318,70 +304,50 @@ if menu == "📊 Dashboard":
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
 
-            if eta_dt and (today - eta_dt).days >= 7:
-                return "Complete"
+            if eta_dt and (today - eta_dt).days >= 7: return "Complete"
             if eta_dt:
                 if eta_dt <= today or (eta_dt > today and eta_dt <= today + timedelta(days=6)): return "Arrived"
                 if eta_dt > today + timedelta(days=6): return "Shipment on way"
             if etd_dt:
                 if etd_dt > today: return "Shipment not shipped"
                 if etd_dt <= today: return "Shipped"
-                
             return "LC Opening"
 
         df['Status'] = df.apply(calculated_status, axis=1)
-        
-        # Calculate distinct counts for visual blocks
         done_count = len(df[df['Status'] == 'Complete']['File No'].unique())
         arrived_count = len(df[df['Status'] == 'Arrived']['File No'].unique())
         pending_count = total_count - done_count
 
-        # 🌟 1. PREMIUM GLASSMORPHISM SUMMARY CARDS INJECTOR
         st.markdown(f"""
             <div class="glass-card-wrapper">
                 <div class="glass-card" style="border-left: 4px solid #38bdf8;">
                     <div><span style="font-size:20px;">📁</span></div>
-                    <div>
-                        <div class="glass-card-value">{total_count}</div>
-                        <div class="glass-card-label">Total Files</div>
-                    </div>
+                    <div><div class="glass-card-value">{total_count}</div><div class="glass-card-label">Total Files</div></div>
                 </div>
                 <div class="glass-card" style="border-left: 4px solid #4ade80;">
                     <div><span style="font-size:20px;">✅</span></div>
-                    <div>
-                        <div class="glass-card-value">{done_count}</div>
-                        <div class="glass-card-label">Done Projects</div>
-                    </div>
+                    <div><div class="glass-card-value">{done_count}</div><div class="glass-card-label">Done Projects</div></div>
                 </div>
                 <div class="glass-card" style="border-left: 4px solid #fb923c;">
                     <div><span style="font-size:20px;">⏳</span></div>
-                    <div>
-                        <div class="glass-card-value">{pending_count}</div>
-                        <div class="glass-card-label">Pending Files</div>
-                    </div>
+                    <div><div class="glass-card-value">{pending_count}</div><div class="glass-card-label">Pending Files</div></div>
                 </div>
                 <div class="glass-card" style="border-left: 4px solid #a78bfa;">
                     <div><span style="font-size:20px;">⚓</span></div>
-                    <div>
-                        <div class="glass-card-value">{arrived_count}</div>
-                        <div class="glass-card-label">Port Arrived</div>
-                    </div>
+                    <div><div class="glass-card-value">{arrived_count}</div><div class="glass-card-label">Port Arrived</div></div>
                 </div>
             </div>
         """, unsafe_allow_html=True)
 
-        # 🌟 2. SIDEBAR ALERTS BLOCK (CLEAN & MINIMAL)
         if all_live_alerts:
             with st.sidebar.expander("🔔 SYSTEM LIVE ALERTS", expanded=True):
-                for alert_msg in set(all_live_alerts):
-                    st.info(alert_msg)
+                for alert_msg in set(all_live_alerts): st.info(alert_msg)
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
-            safe_download_df = df[safe_display_cols_clean]
-            st.download_button(label="📥 Export Master Sheet to Excel", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            st.download_button(label="📥 Export Master Sheet to Excel", data=df[safe_display_cols_clean].to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
             st.markdown('</div>', unsafe_allow_html=True)
             
         with c_top2:
@@ -402,23 +368,18 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        # 🌟 5. EXTREMELY CLEAN GLASS-STYLE DYNAMIC COLOR CODES PER CELL/ROW
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                # Minimalist Soft Colors Matching the User's Image Layout
-                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;' # Soft Emerald Mint
-                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;' # Gray Outline Archival
-                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;' # Crimson Rose Line
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;' # Soft Lavender Amber Tint
-                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;' # Sky Blue
+                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;'
+                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;'
+                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;'
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;'
+                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;'
             return [color] * len(row)
 
-        try:
-            styled_df = df_display.style.apply(style_rows, axis=1)
-            st.dataframe(styled_df, use_container_width=True, hide_index=False)
-        except:
-            st.dataframe(df_display, use_container_width=True, hide_index=False)
+        try: st.dataframe(df_display.style.apply(style_rows, axis=1), use_container_width=True)
+        except: st.dataframe(df_display, use_container_width=True)
     else: st.info("System mein koi data majood nahi hai.")
 
 # --- 2. NAYI ENTRY ---
@@ -446,26 +407,18 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
         
         st.markdown("---")
         st.markdown("##### 🛒 Items Breakdown")
-        
         items_inputs = []
         for i in range(1, 4):
             st.write(f"**Item #{i}:**")
             it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
-            
             name = it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
             brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
-            
             hs_suggestions = get_hs_codes_for_item(name) if name else []
-            if hs_suggestions:
-                hs_code = it_hs.selectbox("HS Code (Historic)", hs_suggestions, key=f"add_hs_drop_{i}")
-            else:
-                hs_code = it_hs.text_input("HS Code", key=f"add_hs_text_{i}")
-                
+            hs_code = it_hs.selectbox("HS Code (Historic)", hs_suggestions, key=f"add_hs_drop_{i}") if hs_suggestions else it_hs.text_input("HS Code", key=f"add_hs_text_{i}")
             qty = it2.text_input("Qty", key=f"add_qty_{i}")
             unit = it3.selectbox("Unit", UNITS, key=f"add_unit_{i}")
             price = it4.text_input("Unit Price", key=f"add_price_{i}")
             costing = it5.text_input("Actual Costing", key=f"add_cost_{i}")
-            
             if name: items_inputs.append((name, brand, hs_code, qty, unit, price, costing))
                 
         st.markdown("---")
@@ -480,12 +433,10 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
             if not file_no: st.error("File No likhna zaroori hai!")
             else:
                 try:
-                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, str(indenter), file_no, str(shipper), pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
+                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, str(indenter), file_no, str(shipper), pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
                     for item in items_inputs:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
-                    conn.commit()
-                    st.success("✅ Shipment recorded securely!")
-                    st.rerun()
+                    conn.commit(); st.success("✅ Shipment recorded securely!"); st.rerun()
                 except Exception as e: st.error(f"Error: Save nahi ho saka. Details: {e}")
 
 # --- 3. UPDATE / EDIT ---
@@ -515,7 +466,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             type_val = get_val(row, ['shipment_type', 'SHIPMENT_TYPE'])
             etd_val = get_val(row, ['etd', 'ETD'])
             eta_val = get_val(row, ['eta', 'ETA'])
-            bl_val = get_val(row, ['bl_no', 'BL__LC_NO', 'bl_no'])
+            bl_val = get_val(row, ['bl_no', 'BL__LC_NO'])
             docs_val = get_val(row, ['bank_docs', 'BANK_DOCS'])
             rem_val = get_val(row, ['remarks', 'REMARKS'])
 
@@ -530,36 +481,28 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             st.markdown("---")
             st.markdown("##### 🛒 Edit Items, Brand & Add Actual Costing Here")
             updated_items = []
-            
             for idx in range(3):
                 st.write(f"**Item Row #{idx+1}:**")
                 it_col1, it_col_b, it_col_hs, it_col2, it_col3, it_col4, it_col5 = st.columns([3, 2, 2, 1, 1, 1, 2])
-                
                 ex_name, ex_brand, ex_hs, ex_qty, ex_unit, ex_price, ex_cost = "", "", "", "", "KG", "", ""
                 if idx < len(df_ex_items):
                     item_row = df_ex_items.iloc[idx]
-                    ex_name = get_val(item_row, ['item_name', 'ITEM_NAME'])
-                    ex_brand = get_val(item_row, ['brand_name', 'BRAND_NAME'])
-                    ex_hs = get_val(item_row, ['hs_code', 'HS_CODE'])
-                    ex_qty = get_val(item_row, ['qty', 'QTY'])
-                    ex_unit = get_val(item_row, ['unit', 'UNIT'], "KG")
-                    ex_price = get_val(item_row, ['unit_price', 'UNIT_PRICE'])
-                    ex_cost = get_val(item_row, ['actual_costing', 'ACTUAL_COSTING'])
+                    ex_name = get_val(item_row, ['item_name'])
+                    ex_brand = get_val(item_row, ['brand_name'])
+                    ex_hs = get_val(item_row, ['hs_code'])
+                    ex_qty = get_val(item_row, ['qty'])
+                    ex_unit = get_val(item_row, ['unit'], "KG")
+                    ex_price = get_val(item_row, ['unit_price'])
+                    ex_cost = get_val(item_row, ['actual_costing'])
                 
                 u_name = it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
                 u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
-                
                 hs_suggestions = get_hs_codes_for_item(u_name) if u_name else []
-                if hs_suggestions:
-                    u_hs = it_col_hs.selectbox("HS Code", hs_suggestions, index=hs_suggestions.index(ex_hs) if ex_hs in hs_suggestions else 0, key=f"u_hs_drop_{file_to_update}_{idx}")
-                else:
-                    u_hs = it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_txt_{file_to_update}_{idx}")
-                    
+                u_hs = it_col_hs.selectbox("HS Code", hs_suggestions, index=hs_suggestions.index(ex_hs) if ex_hs in hs_suggestions else 0, key=f"u_hs_drop_{file_to_update}_{idx}") if hs_suggestions else it_col_hs.text_input("HS Code", value=str(ex_hs), key=f"u_hs_txt_{file_to_update}_{idx}")
                 u_qty = it_col2.text_input("Qty", value=str(ex_qty), key=f"u_qty_{file_to_update}_{idx}")
                 u_unit = it_col3.selectbox("Unit", UNITS, index=UNITS.index(ex_unit) if ex_unit in UNITS else 0, key=f"u_unit_{file_to_update}_{idx}")
                 u_price = it_col4.text_input("Price", value=str(ex_price), key=f"u_price_{file_to_update}_{idx}")
                 u_cost = it_col5.text_input("Actual Costing", value=str(ex_cost), key=f"u_cost_{file_to_update}_{idx}")
-                
                 if u_name and u_name.strip() != "": updated_items.append((u_name, u_brand, u_hs, u_qty, u_unit, u_price, u_cost))
                     
             st.markdown("---")
@@ -574,9 +517,81 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 c.execute(f"DELETE FROM shipment_items WHERE file_no='{file_to_update}'")
                 for item in updated_items:
                     c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_to_update, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
-                conn.commit()
-                st.success("✅ Records updated successfully!")
-                st.rerun()
+                conn.commit(); st.success("✅ Records updated successfully!"); st.rerun()
+
+# --- 🚀 4. NEW FEATURE: UPLOAD EXCEL BACKUP TAB ---
+elif menu == "📥 Upload Backup (Excel)":
+    st.subheader("📥 Upload System Backup Excel File (.csv)")
+    st.info("💡 Yeh portal aapki purani download ki hui Excel (CSV) file ko read karke chalte hue software ke database mein saari entries ek sath load kar dega.")
+    
+    uploaded_file = st.file_uploader("Apni Backup File Select Karein:", type=["csv"])
+    
+    if uploaded_file is not None:
+        try:
+            # Load CSV file into temporary memory dataframe
+            backup_df = pd.read_csv(uploaded_file)
+            st.write("📊 **File Preview (Pehle 5 Rows):**")
+            st.dataframe(backup_df.head(5), use_container_width=True)
+            
+            # Map clean columns checks
+            required_cols = ['Company Name', 'Bank Name', 'File No', 'Item Name']
+            missing_cols = [c for c in required_cols if c not in backup_df.columns]
+            
+            if missing_cols:
+                st.error(f"❌ Is File ke andar zaroori columns ghaib hain: {missing_cols}. Sahi backup file upload karein.")
+            else:
+                if st.button("🚀 Haan, Yeh Poora Data Software Mein Load Kardo", use_container_width=True):
+                    success_count = 0
+                    duplicate_count = 0
+                    
+                    for index, row in backup_df.iterrows():
+                        f_no = str(row.get('File No', '')).strip()
+                        if not f_no or f_no == "-": continue
+                        
+                        # Check columns safely matching schema values
+                        comp = str(row.get('Company Name', '-'))
+                        bnk = str(row.get('Bank Name', '-'))
+                        ind = str(row.get('Indenter', '-'))
+                        shp = str(row.get('Supplier Name', '-'))
+                        val = str(row.get('Total LC Value', '0'))
+                        curr = str(row.get('Currency', 'USD'))
+                        stype = str(row.get('Type', 'FCL'))
+                        etd_val = str(row.get('ETD', '-'))
+                        eta_val = str(row.get('ETA', '-'))
+                        bl_val = str(row.get('BL / LC No', '-'))
+                        b_docs = str(row.get('Bank Docs', 'Pending'))
+                        rem = str(row.get('Remarks', '-'))
+                        
+                        # Save main file entry cleanly if unique
+                        try:
+                            c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
+                                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
+                                      (comp, bnk, ind, f_no, shp, "-", val, curr, stype, etd_val, eta_val, bl_val, b_docs, rem))
+                        except sqlite3.IntegrityError:
+                            # File No already exists, skip main entry to prevent software crash
+                            duplicate_count += 1
+                        
+                        # Add items rows for item mapping
+                        it_name = str(row.get('Item Name', '-'))
+                        if it_name and it_name != "-":
+                            it_brand = str(row.get('Brand Name', '-'))
+                            it_hs = str(row.get('HS Code', '-'))
+                            it_qty = str(row.get('Quantity', '0'))
+                            it_unit = str(row.get('Unit', 'KG'))
+                            it_price = str(row.get('Unit Price', '0'))
+                            it_cost = str(row.get('Actual Costing (PKR)', '0'))
+                            
+                            c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
+                                         VALUES (?,?,?,?,?,?,?,?)''', 
+                                      (f_no, it_name, it_brand, it_hs, it_qty, it_unit, it_price, it_cost))
+                        
+                        success_count += 1
+                    
+                    conn.commit()
+                    st.success(f"🎉 Mubarak ho! File ka data kamyabi se restore ho gaya hai. Total processed rows: {success_count}. Duplicated skipped files: {duplicate_count}")
+                    st.balloons()
+        except Exception as e:
+            st.error(f"❌ File read karne mein error aaya. Details: {e}")
 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
@@ -594,9 +609,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         u_clean = new_user.strip().lower()
                         c.execute("INSERT INTO users (username, password, role) VALUES (?,?,?)", (u_clean, new_pass, selected_role))
                         c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (u_clean, json.dumps(ALL_AVAILABLE_COLUMNS)))
-                        conn.commit()
-                        st.success(f"✅ User '{u_clean}' created!")
-                        st.rerun()
+                        conn.commit(); st.success(f"✅ User '{u_clean}' created!"); st.rerun()
                     except: st.error("Error: Username pehle se dakhil hai.")
                 else: st.error("Fields bhanna zaroori hain.")
 
@@ -610,8 +623,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                 if st.form_submit_button("🔒 Password Change Karein"):
                     if new_password_val:
                         c.execute("UPDATE users SET password=? WHERE username=?", (new_password_val, target_user))
-                        conn.commit()
-                        st.success(f"✅ Password changed!")
+                        conn.commit(); st.success(f"✅ Password changed!")
                     else: st.error("Field empty.")
             if st.button("❌ Haan, Account Delete Kardo"):
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
@@ -631,8 +643,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
     chosen_columns = []
     for idx, col_name in enumerate(ALL_AVAILABLE_COLUMNS):
         with chk_cols[idx % 4]:
-            is_checked = col_name in current_allowed
-            if st.checkbox(col_name, value=is_checked, key=f"chk_{user_to_configure}_{col_name}"):
+            if st.checkbox(col_name, value=col_name in current_allowed, key=f"chk_{user_to_configure}_{col_name}"):
                 chosen_columns.append(col_name)
                 
     if st.button("🔒 Column Permissions Save Karein", use_container_width=True):
