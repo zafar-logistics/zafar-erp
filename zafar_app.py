@@ -639,4 +639,39 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
         if not chosen_columns: st.error("Kam az kam aik column allow karna zaroori hai!")
         else:
             c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES (?,?)", (user_to_configure, json.dumps(chosen_columns)))
-            conn.commit(); st.success("Stored successfully!")
+            conn.commit(); st.success("Stored successfully!") 
+            # --- SYSTEM BACKUP & RESTORE MODULE (Updated & Fixed) ---
+
+def handle_excel_upload(uploaded_file):
+    try:
+        # File type check (CSV ya Excel)
+        if uploaded_file.name.endswith('.csv'):
+            df = pd.read_csv(uploaded_file)
+        else:
+            df = pd.read_excel(uploaded_file)
+        
+        # Database mein data daalne ka process
+        # Ismein hum sirf un columns ko target kar rahe hain jo aapki DB table mein hain
+        for _, row in df.iterrows():
+            c.execute('''INSERT OR IGNORE INTO shipments 
+                         (file_no, company_name, bank_name, shipper) 
+                         VALUES (?, ?, ?, ?)''', 
+                      (row.get('File No'), row.get('Company Name'), row.get('Bank Name'), row.get('Supplier Name')))
+        
+        conn.commit()
+        return True, "Data successfully sync ho gaya!"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
+
+def render_backup_tab():
+    st.markdown("### 📥 System Backup & Restore")
+    uploaded_file = st.file_uploader("CSV ya Excel file upload karein", type=['csv', 'xlsx'])
+    
+    if uploaded_file is not None:
+        if st.button("🚀 Load Data Into Database"):
+            success, msg = handle_excel_upload(uploaded_file)
+            if success:
+                st.success(msg)
+                st.rerun() # Page refresh taake data reflect ho
+            else:
+                st.error(msg)
