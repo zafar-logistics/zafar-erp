@@ -225,6 +225,18 @@ menu = st.sidebar.radio("Navigation Menu:", ["Dashboard", "Nayi Entry (Add)", "U
 
 # --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
 st.sidebar.markdown("---")
+elif menu == "📥 Excel Upload":
+        st.header("📥 Excel File Upload")
+        uploaded_file = st.file_uploader("Excel file select karein", type=['xlsx', 'csv'])
+        if uploaded_file is not None:
+            if st.button("🚀 Upload & Sync Data"):
+                try:
+                    df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+                    df.to_sql('shipments', conn, if_exists='replace', index=False)
+                    st.success("✅ Data Sync ho gaya!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
 st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
 all_items_saved = get_distinct_values("item_name", "shipment_items")
 if all_items_saved:
