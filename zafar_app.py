@@ -284,6 +284,26 @@ if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
             except Exception as e:
                 st.error(f"❌ Error aaya: {e}")
 
+# Yeh naya block code ke end mein ya wahan jahan baaki 'if' conditions hain, wahan paste karein:
+if menu == "📥 Excel Upload":
+    st.header("📥 Excel File Upload")
+    st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
+    
+    uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['xlsx', 'csv'])
+    
+    if uploaded_file is not None:
+        if st.button("🚀 Upload & Sync Data"):
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                df.to_sql('shipments', conn, if_exists='replace', index=False)
+                st.success("✅ File successfully upload aur sync ho gayi!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Error aaya: {e}")
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
 CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
