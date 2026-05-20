@@ -220,30 +220,10 @@ st.sidebar.markdown("---")
 
 available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
-# Line 223 ko replace karke yeh likhein:
-menu = st.sidebar.radio("Navigation Menu:", ["Dashboard", "Nayi Entry (Add)", "Update / Edit", "Manage Users / Accounts", "📥 Excel Upload"])
+menu = st.sidebar.radio("Navigation Menu:", available_options)
 
 # --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
 st.sidebar.markdown("---")
-if menu == "📥 Excel Upload":
-    st.header("📥 Excel File Upload")
-    st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
-    
-    uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['xlsx', 'csv'])
-    
-    if uploaded_file is not None:
-        if st.button("🚀 Upload & Sync Data"):
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                df.to_sql('shipments', conn, if_exists='replace', index=False)
-                st.success("✅ File successfully upload aur sync ho gayi!")
-                st.rerun() 
-            except Exception as e:
-                st.error(f"❌ Error aaya: {e}")
 st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
 all_items_saved = get_distinct_values("item_name", "shipment_items")
 if all_items_saved:
@@ -268,49 +248,7 @@ if all_items_saved:
 st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
 if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
     st.session_state["logged_in"] = False; st.rerun()
-    if menu == "📥 Excel Upload":
-        st.header("📥 Excel File Upload")
-        st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
-    
-    uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['xlsx', 'csv'])
-    
-    if uploaded_file is not None:
-        if st.button("🚀 Upload & Sync Data"):
-            try:
-                # File read karna
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                # Table replace karna
-                df.to_sql('shipments', conn, if_exists='replace', index=False)
-                
-                st.success("✅ File successfully upload ho gayi!")
-                st.rerun() 
-            except Exception as e:
-                st.error(f"❌ Error aaya: {e}")
 
-# Yeh naya block code ke end mein ya wahan jahan baaki 'if' conditions hain, wahan paste karein:
-if menu == "📥 Excel Upload":
-    st.header("📥 Excel File Upload")
-    st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
-    
-    uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['xlsx', 'csv'])
-    
-    if uploaded_file is not None:
-        if st.button("🚀 Upload & Sync Data"):
-            try:
-                if uploaded_file.name.endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                df.to_sql('shipments', conn, if_exists='replace', index=False)
-                st.success("✅ File successfully upload aur sync ho gayi!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Error aaya: {e}")
 BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
 CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
