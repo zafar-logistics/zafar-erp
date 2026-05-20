@@ -378,6 +378,28 @@ if menu == "📊 Dashboard":
 
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
+            # ... (pichla code jahan c_top1 aur c_top2 hain)
+
+        with c_top1:
+            st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
+            # Purana Export button
+            st.download_button(label="📥 Export Master Sheet to Excel", data=safe_download_df.to_csv(index=False).encode('utf-8'), file_name=f"Haameem_Master_{datetime.now().strftime('%Y-%m-%d')}.csv", mime="text/csv")
+            
+            # --- YAHAN ADD KAREIN ---
+            st.markdown("---")
+            uploaded_file = st.file_uploader("Upload Excel File", type=["xlsx", "xls"])
+            if uploaded_file is not None:
+                try:
+                    df_new = pd.read_excel(uploaded_file)
+                    # Data ko 'shipment_items' table mein insert karein
+                    df_new.to_sql('shipment_items', con=conn, if_exists='append', index=False)
+                    st.success("File uploaded successfully!")
+                    st.rerun() # Page refresh karne ke liye
+                except Exception as e:
+                    st.error(f"Error: {e}")
+            # ------------------------
+            
+            st.markdown('</div>', unsafe_allow_html=True)
             st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
             safe_display_cols_clean = [c for c in allowed_display_cols if c in df.columns]
             safe_download_df = df[safe_display_cols_clean]
