@@ -269,8 +269,8 @@ st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
 if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
     st.session_state["logged_in"] = False; st.rerun()
     if menu == "📥 Excel Upload":
-    st.header("📥 Excel File Upload")
-    st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
+        st.header("📥 Excel File Upload")
+        st.warning("⚠️ Dhyan dein: Purana data replace ho jayega.")
     
     uploaded_file = st.file_uploader("Excel ya CSV file select karein", type=['xlsx', 'csv'])
     
