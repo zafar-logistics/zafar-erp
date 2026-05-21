@@ -586,45 +586,49 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         if uploaded_file is not None:
             df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
             
-            # Mapping jo aapke database columns se exact match karti hai
+            # Database ke exact column names (Jo create table mein hain)
+            db_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
+                       'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
+            
+            # Simple Mapping: Agar Excel mein "Company Name" hai toh wo "company_name" ban jaye
+            # Hum isay dynamic bana rahe hain taake spelling mistake kam ho
             mapping = {
-                'Company Name': 'company_name',
-                'Bank Name': 'bank_name',
+                'Company Name': 'company_name', 'Company': 'company_name',
+                'Bank Name': 'bank_name', 'Bank': 'bank_name',
                 'Indenter': 'indenter',
-                'File No': 'file_no',
-                'Supplier Name': 'shipper',
-                'PI No': 'pi_no',
-                'FC Amount': 'fc_amount',
+                'File No': 'file_no', 'File': 'file_no',
+                'Supplier Name': 'shipper', 'Supplier': 'shipper',
+                'PI No': 'pi_no', 'PI': 'pi_no',
+                'FC Amount': 'fc_amount', 'Amount': 'fc_amount',
                 'Currency': 'currency',
                 'Type': 'shipment_type',
                 'ETD': 'etd',
                 'ETA': 'eta',
-                'BL / LC No': 'bl_no',
+                'BL / LC No': 'bl_no', 'BL No': 'bl_no',
                 'Bank Docs': 'bank_docs',
                 'Remarks': 'remarks'
             }
             
             df = df.rename(columns=mapping)
             
-            if st.button(" 💾  Save/Update to Database"):
+            # Jo columns mapping ke baad bhi database se match nahi kar rahe, unhe hata do
+            df_clean = df[[c for c in df.columns if c in db_cols]]
+            
+            st.write("Data jo upload hoga:")
+            st.dataframe(df_clean.head())
+
+            if st.button(" 💾  Final Save"):
                 try:
-                    # 1. Sirf wahi columns jo database mein hain
-                    cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
-                            'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
-                    df_final = df[[c for c in cols if c in df.columns]]
+                    # Duplicate file_no hatao
+                    for fno in df_clean['file_no'].dropna().unique():
+                        c.execute("DELETE FROM shipments WHERE file_no=?", (str(fno),))
                     
-                    # 2. Duplicate file_no ko database se remove karein taake error na aaye
-                    for file_no in df_final['file_no'].unique():
-                        c.execute("DELETE FROM shipments WHERE file_no=?", (str(file_no),))
-                    
-                    # 3. Naya data insert karein
-                    df_final.to_sql('shipments', conn, if_exists='append', index=False)
-                    
+                    # Data insert karo
+                    df_clean.to_sql('shipments', conn, if_exists='append', index=False)
                     conn.commit()
-                    st.success(" ✅ Data successfully upload ho gaya!")
-                    st.rerun()
+                    st.success(" ✅ Data successfully save ho gaya!")
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"DATABASE ERROR: {e}")
                 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
