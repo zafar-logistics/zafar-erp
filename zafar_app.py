@@ -586,39 +586,42 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         if uploaded_file is not None:
             df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
             
-            # Database ke columns
-            db_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
-                       'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
+            # Mapping jo aapke database columns se exact match karti hai
+            mapping = {
+                'Company Name': 'company_name',
+                'Bank Name': 'bank_name',
+                'Indenter': 'indenter',
+                'File No': 'file_no',
+                'Supplier Name': 'shipper',
+                'PI No': 'pi_no',
+                'FC Amount': 'fc_amount',
+                'Currency': 'currency',
+                'Type': 'shipment_type',
+                'ETD': 'etd',
+                'ETA': 'eta',
+                'BL / LC No': 'bl_no',
+                'Bank Docs': 'bank_docs',
+                'Remarks': 'remarks'
+            }
             
-            st.write("File Columns Found:", df.columns.tolist())
+            df = df.rename(columns=mapping)
             
-            # Auto-mapping Logic
-            new_mapping = {}
-            for col in df.columns:
-                # Header ko lowercase karo aur spaces hatao taake match ho sake
-                clean_col = col.lower().replace(" ", "").replace("_", "")
-                for db_col in db_cols:
-                    if clean_col in db_col.lower().replace("_", ""):
-                        new_mapping[col] = db_col
-            
-            df = df.rename(columns=new_mapping)
-            st.write("Auto-Mapped Data:", df.head())
-
-            if st.button(" 💾  Save to Database"):
+            if st.button(" 💾  Save/Update to Database"):
                 try:
-                    # Sirf wahi columns rakho jo database mein hain
-                    df_final = df[[c for c in df.columns if c in db_cols]]
+                    # 1. Sirf wahi columns jo database mein hain
+                    cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
+                            'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
+                    df_final = df[[c for c in cols if c in df.columns]]
                     
-                    # Duplicate file_no ko handle karne ke liye (Delete then Insert)
-                    for _, row in df_final.iterrows():
-                        c.execute("DELETE FROM shipments WHERE file_no=?", (row['file_no'],))
-                        placeholders = ', '.join(['?'] * len(row))
-                        columns = ', '.join(row.index)
-                        sql = f"INSERT INTO shipments ({columns}) VALUES ({placeholders})"
-                        c.execute(sql, tuple(row))
+                    # 2. Duplicate file_no ko database se remove karein taake error na aaye
+                    for file_no in df_final['file_no'].unique():
+                        c.execute("DELETE FROM shipments WHERE file_no=?", (str(file_no),))
+                    
+                    # 3. Naya data insert karein
+                    df_final.to_sql('shipments', conn, if_exists='append', index=False)
                     
                     conn.commit()
-                    st.success(" ✅ Data successfully update/save ho gaya!")
+                    st.success(" ✅ Data successfully upload ho gaya!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Error: {e}")
