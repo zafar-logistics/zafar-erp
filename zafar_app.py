@@ -218,7 +218,7 @@ st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-botto
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
-available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
+available_options = [" 📊  Dashboard", " 📝  Nayi Entry (Add)", " 🔄  Update / Edit", " 📤  Excel Upload"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
@@ -577,6 +577,28 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 conn.commit()
                 st.success("✅ Records updated successfully!")
                 st.rerun()
+# --- 4. EXCEL UPLOAD SECTION ---
+    elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin", "Manager"]:
+        st.subheader(" 📤  Upload Master Excel Sheet")
+        uploaded_file = st.file_uploader("Excel (.xlsx) ya CSV file select karein", type=["xlsx", "csv"])
+        
+        if uploaded_file is not None:
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    df_upload = pd.read_csv(uploaded_file)
+                else:
+                    df_upload = pd.read_excel(uploaded_file)
+                
+                st.write("File Preview:")
+                st.dataframe(df_upload.head())
+                
+                if st.button(" 💾  Database mein Data Save Karein"):
+                    # Ye data ko 'shipments' table mein add karega
+                    df_upload.to_sql('shipments', conn, if_exists='append', index=False)
+                    st.success(" ✅  Data successfully upload aur save ho gaya!")
+                    st.rerun()
+            except Exception as e:
+                st.error(f"Error: {e}. (Check karein ke Excel ke column names database se match karte hain)")
 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
