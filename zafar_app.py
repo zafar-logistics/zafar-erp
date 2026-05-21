@@ -584,41 +584,44 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         uploaded_file = st.file_uploader("Excel file select karein", type=["xlsx", "csv"])
         
         if uploaded_file is not None:
-            try:
-                df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-                
-                # Mapping mein se 'pi_no' ko hata diya hai kyunke error wahin se aa raha hai
-                mapping = {
-                    'Company Name': 'company_name',
-                    'Bank Name': 'bank_name',
-                    'Indenter': 'indenter',
-                    'File No': 'file_no',
-                    'Supplier Name': 'shipper',
-                    'FC Amount': 'fc_amount',
-                    'Currency': 'currency',
-                    'Type': 'shipment_type',
-                    'ETD': 'etd',
-                    'ETA': 'eta',
-                    'BL / LC No': 'bl_no',
-                    'Bank Docs': 'bank_docs',
-                    'Remarks': 'remarks'
-                }
-                
-                df = df.rename(columns=mapping)
-                
-                # Yeh list wahi hai jo database mein maujood hai
-                required_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 
-                                 'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
-                
-                if st.button(" 💾  Data Save/Update Karein"):
-                    # Check karein ke kaunse columns database mein nahi mil rahe
-                    df_final = df[[c for c in required_cols if c in df.columns]]
+            df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+            
+            # Database ke columns
+            db_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
+                       'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
+            
+            st.write("File Columns Found:", df.columns.tolist())
+            
+            # Auto-mapping Logic
+            new_mapping = {}
+            for col in df.columns:
+                # Header ko lowercase karo aur spaces hatao taake match ho sake
+                clean_col = col.lower().replace(" ", "").replace("_", "")
+                for db_col in db_cols:
+                    if clean_col in db_col.lower().replace("_", ""):
+                        new_mapping[col] = db_col
+            
+            df = df.rename(columns=new_mapping)
+            st.write("Auto-Mapped Data:", df.head())
+
+            if st.button(" 💾  Save to Database"):
+                try:
+                    # Sirf wahi columns rakho jo database mein hain
+                    df_final = df[[c for c in df.columns if c in db_cols]]
                     
-                    df_final.to_sql('shipments', conn, if_exists='append', index=False)
-                    st.success(" ✅ Data successfully upload ho gaya!")
+                    # Duplicate file_no ko handle karne ke liye (Delete then Insert)
+                    for _, row in df_final.iterrows():
+                        c.execute("DELETE FROM shipments WHERE file_no=?", (row['file_no'],))
+                        placeholders = ', '.join(['?'] * len(row))
+                        columns = ', '.join(row.index)
+                        sql = f"INSERT INTO shipments ({columns}) VALUES ({placeholders})"
+                        c.execute(sql, tuple(row))
+                    
+                    conn.commit()
+                    st.success(" ✅ Data successfully update/save ho gaya!")
                     st.rerun()
-            except Exception as e:
-                st.error(f"Error aaya hai: {e}")
+                except Exception as e:
+                    st.error(f"Error: {e}")
                 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
