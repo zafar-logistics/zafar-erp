@@ -585,16 +585,9 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         
         if uploaded_file is not None:
             try:
-                # File read karein
                 df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
                 
-                # Database ke columns (yahi column names Excel mein hone chahiye)
-                # Aapki database table ke mutabiq:
-                # company_name, bank_name, indenter, file_no, shipper, pi_no, 
-                # fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks
-                
-                # Check: Agar Excel ke columns database se match nahi kar rahe, toh unhe map karein
-                # Agar aapki Excel file mein heading "Company Name" hai, toh woh "company_name" ban jayegi
+                # Mapping wahi rakhein jo aapke Excel headers hain
                 mapping = {
                     'Company Name': 'company_name',
                     'Bank Name': 'bank_name',
@@ -613,20 +606,31 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
                 }
                 
                 df = df.rename(columns=mapping)
-                
-                st.write("File Preview (System ye columns uthaye ga):")
-                st.dataframe(df.head())
+                st.write("Preview:", df.head())
 
-                if st.button(" 💾  Database mein Data Save Karein"):
-                    # Sirf wahi columns jo database mein hain
-                    cols_to_use = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 
-                                   'pi_no', 'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 
-                                   'bl_no', 'bank_docs', 'remarks']
+                if st.button(" 💾  Data Save/Update Karein"):
+                    # Database mein har row ko individually check karke save karna
+                    for _, row in df.iterrows():
+                        # Check karein kya file_no pehle se hai
+                        c.execute("SELECT 1 FROM shipments WHERE file_no=?", (row['file_no'],))
+                        if c.fetchone():
+                            # Agar hai toh UPDATE karein
+                            c.execute("""UPDATE shipments SET company_name=?, bank_name=?, indenter=?, 
+                                         shipper=?, pi_no=?, fc_amount=?, currency=?, shipment_type=?, 
+                                         etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?""",
+                                      (row['company_name'], row['bank_name'], row['indenter'], row['shipper'], 
+                                       row['pi_no'], row['fc_amount'], row['currency'], row['shipment_type'], 
+                                       row['etd'], row['eta'], row['bl_no'], row['bank_docs'], row['remarks'], row['file_no']))
+                        else:
+                            # Agar nahi hai toh INSERT karein
+                            c.execute("""INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, 
+                                         pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
+                                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                                      (row['company_name'], row['bank_name'], row['indenter'], row['file_no'], row['shipper'], 
+                                       row['pi_no'], row['fc_amount'], row['currency'], row['shipment_type'], 
+                                       row['etd'], row['eta'], row['bl_no'], row['bank_docs'], row['remarks']))
                     
-                    df_final = df[[c for c in cols_to_use if c in df.columns]]
-                    
-                    # Data insert karein
-                    df_final.to_sql('shipments', conn, if_exists='append', index=False)
+                    conn.commit()
                     st.success(" ✅ Data successfully save ho gaya!")
                     st.rerun()
             except Exception as e:
