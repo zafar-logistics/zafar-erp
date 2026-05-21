@@ -585,46 +585,41 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         
         if uploaded_file is not None:
             try:
-                df_upload = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-                
-                # Database ke columns jo hamare code mein defined hain
-                db_columns = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 
-                              'pi_no', 'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 
-                              'bl_no', 'bank_docs', 'remarks']
-                
-                st.write("Aapki file ka data:")
-                st.dataframe(df_upload.head())
-                
+                df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+                st.write("File Preview:")
+                st.dataframe(df.head())
+
                 if st.button(" 💾  Database mein Data Save Karein"):
-                    # Step 1: Mapping (Excel ke headers ko database ke naam se badalna)
-                    # Yahan Left side par Excel ke column names likhein, right par Database ke names
+                    # Mapping: Left side (Excel Header) -> Right side (Database Column)
                     mapping = {
                         'Company Name': 'company_name',
                         'Bank Name': 'bank_name',
                         'Indenter': 'indenter',
                         'File No': 'file_no',
-                        'Supplier': 'shipper', # Yahan apni Excel ke header jaisa naam likhein
+                        'Supplier Name': 'shipper',
                         'PI No': 'pi_no',
-                        'Amount': 'fc_amount',
+                        'FC Amount': 'fc_amount',
                         'Currency': 'currency',
                         'Type': 'shipment_type',
                         'ETD': 'etd',
                         'ETA': 'eta',
-                        'BL No': 'bl_no',
-                        'Docs': 'bank_docs',
+                        'BL / LC No': 'bl_no',
+                        'Bank Docs': 'bank_docs',
                         'Remarks': 'remarks'
                     }
                     
-                    # Sirf wahi columns rakhein jo humein chahiye
-                    df_upload = df_upload.rename(columns=mapping)
-                    df_final = df_upload[[col for col in db_columns if col in df_upload.columns]]
+                    # Sirf wahi columns rakhein jo mapping mein hain
+                    df = df.rename(columns=mapping)
+                    columns_to_keep = [col for col in mapping.values() if col in df.columns]
+                    df_final = df[columns_to_keep]
                     
-                    # Step 2: Database mein insert
+                    # Database mein push karein
                     df_final.to_sql('shipments', conn, if_exists='append', index=False)
                     st.success(" ✅ Data successfully upload ho gaya!")
                     st.rerun()
             except Exception as e:
-                st.error(f"Error aaya hai: {e}")
+                st.error(f"Error: {e}")
+                
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 System Accounts & Column Security Settings")
