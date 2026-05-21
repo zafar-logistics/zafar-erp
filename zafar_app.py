@@ -218,7 +218,7 @@ st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-botto
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
-available_options = [" 📊  Dashboard", " 📝  Nayi Entry (Add)", " 🔄  Update / Edit", " 📤  Excel Upload"]
+available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
@@ -577,71 +577,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 conn.commit()
                 st.success("✅ Records updated successfully!")
                 st.rerun()
-# --- 4. EXCEL UPLOAD SECTION ---
-   
-elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin", "Manager"]:
-        st.subheader(" 📤  Upload Master Excel Sheet")
-        uploaded_file = st.file_uploader("Excel file select karein", type=["xlsx", "csv"])
-        
-        if uploaded_file is not None:
-            df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-            
-            # --- YEH HAIN DATABASE KE ASLI COLUMN NAMES ---
-            # company_name, bank_name, indenter, file_no, shipper, pi_no, 
-            # fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks
-            
-            # Excel ke headers (left) ko database columns (right) se map kar rahe hain
-            mapping = {
-                'Company Name': 'company_name',
-                'Bank Name': 'bank_name',
-                'Indenter': 'indenter',
-                'File No': 'file_no',
-                'Supplier Name': 'shipper',
-                'PI No': 'pi_no',
-                'FC Amount': 'fc_amount',
-                'Currency': 'currency',
-                'Type': 'shipment_type',
-                'ETD': 'etd',
-                'ETA': 'eta',
-                'BL / LC No': 'bl_no',
-                'Bank Docs': 'bank_docs',
-                'Remarks': 'remarks'
-            }
-            
-            # Rename karte hain
-            df = df.rename(columns=mapping)
-            
-            # Sirf wohi columns rakho jo database mein hain
-            valid_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
-                          'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
-            
-            df_final = df[[c for c in df.columns if c in valid_cols]]
-            
-            st.write("Data jo upload hoga:")
-            st.dataframe(df_final.head())
 
-            if st.button(" 💾  Final Save"):
-                try:
-                    # Har row ko check karo, agar file_no pehle se hai to update, warna insert
-                    for index, row in df_final.iterrows():
-                        file_no = row['file_no']
-                        # Data prepare karo
-                        data_tuple = tuple(row.values)
-                        cols_str = ', '.join(row.index)
-                        placeholders = ', '.join(['?'] * len(row))
-                        
-                        # Pehle delete karo taake duplicate error na aaye
-                        c.execute("DELETE FROM shipments WHERE file_no=?", (str(file_no),))
-                        
-                        # Naya insert karo
-                        sql = f"INSERT INTO shipments ({cols_str}) VALUES ({placeholders})"
-                        c.execute(sql, data_tuple)
-                    
-                    conn.commit()
-                    st.success(" ✅ Data successfully save ho gaya!")
-                except Exception as e:
-                    st.error(f"DATABASE ERROR: {e}")
-                
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
     st.subheader("👥 System Accounts & Column Security Settings")
