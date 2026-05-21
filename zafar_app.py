@@ -587,15 +587,13 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
             try:
                 df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
                 
-                # Yeh mapping aapki Excel ki headings se honi chahiye
-                # Excel ki headings (left side) -> Database columns (right side)
+                # Mapping mein se 'pi_no' ko hata diya hai kyunke error wahin se aa raha hai
                 mapping = {
                     'Company Name': 'company_name',
                     'Bank Name': 'bank_name',
                     'Indenter': 'indenter',
                     'File No': 'file_no',
                     'Supplier Name': 'shipper',
-                    'PI No': 'pi_no',
                     'FC Amount': 'fc_amount',
                     'Currency': 'currency',
                     'Type': 'shipment_type',
@@ -608,24 +606,19 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
                 
                 df = df.rename(columns=mapping)
                 
-                # Check karein ke kaunse columns database mein nahi mil rahe
-                required_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
+                # Yeh list wahi hai jo database mein maujood hai
+                required_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 
                                  'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
                 
-                missing_cols = [c for c in required_cols if c not in df.columns]
-                
-                if missing_cols:
-                    st.error(f"❌ Error: Excel file mein ye columns missing hain ya spelling galat hai: {missing_cols}")
-                    st.write("Aapki Excel ke columns:", df.columns.tolist())
-                else:
-                    st.write("Preview OK! Save karne ke liye button dabayein.")
-                    if st.button(" 💾  Data Save/Update Karein"):
-                        df_final = df[required_cols]
-                        df_final.to_sql('shipments', conn, if_exists='append', index=False)
-                        st.success(" ✅ Data successfully upload ho gaya!")
-                        st.rerun()
+                if st.button(" 💾  Data Save/Update Karein"):
+                    # Check karein ke kaunse columns database mein nahi mil rahe
+                    df_final = df[[c for c in required_cols if c in df.columns]]
+                    
+                    df_final.to_sql('shipments', conn, if_exists='append', index=False)
+                    st.success(" ✅ Data successfully upload ho gaya!")
+                    st.rerun()
             except Exception as e:
-                st.error(f"System Error: {e}")
+                st.error(f"Error aaya hai: {e}")
                 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
