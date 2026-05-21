@@ -587,7 +587,8 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
             try:
                 df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
                 
-                # Mapping wahi rakhein jo aapke Excel headers hain
+                # Yeh mapping aapki Excel ki headings se honi chahiye
+                # Excel ki headings (left side) -> Database columns (right side)
                 mapping = {
                     'Company Name': 'company_name',
                     'Bank Name': 'bank_name',
@@ -606,35 +607,25 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
                 }
                 
                 df = df.rename(columns=mapping)
-                st.write("Preview:", df.head())
-
-                if st.button(" 💾  Data Save/Update Karein"):
-                    # Database mein har row ko individually check karke save karna
-                    for _, row in df.iterrows():
-                        # Check karein kya file_no pehle se hai
-                        c.execute("SELECT 1 FROM shipments WHERE file_no=?", (row['file_no'],))
-                        if c.fetchone():
-                            # Agar hai toh UPDATE karein
-                            c.execute("""UPDATE shipments SET company_name=?, bank_name=?, indenter=?, 
-                                         shipper=?, pi_no=?, fc_amount=?, currency=?, shipment_type=?, 
-                                         etd=?, eta=?, bl_no=?, bank_docs=?, remarks=? WHERE file_no=?""",
-                                      (row['company_name'], row['bank_name'], row['indenter'], row['shipper'], 
-                                       row['pi_no'], row['fc_amount'], row['currency'], row['shipment_type'], 
-                                       row['etd'], row['eta'], row['bl_no'], row['bank_docs'], row['remarks'], row['file_no']))
-                        else:
-                            # Agar nahi hai toh INSERT karein
-                            c.execute("""INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, 
-                                         pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
-                                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-                                      (row['company_name'], row['bank_name'], row['indenter'], row['file_no'], row['shipper'], 
-                                       row['pi_no'], row['fc_amount'], row['currency'], row['shipment_type'], 
-                                       row['etd'], row['eta'], row['bl_no'], row['bank_docs'], row['remarks']))
-                    
-                    conn.commit()
-                    st.success(" ✅ Data successfully save ho gaya!")
-                    st.rerun()
+                
+                # Check karein ke kaunse columns database mein nahi mil rahe
+                required_cols = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 'pi_no', 
+                                 'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 'bl_no', 'bank_docs', 'remarks']
+                
+                missing_cols = [c for c in required_cols if c not in df.columns]
+                
+                if missing_cols:
+                    st.error(f"❌ Error: Excel file mein ye columns missing hain ya spelling galat hai: {missing_cols}")
+                    st.write("Aapki Excel ke columns:", df.columns.tolist())
+                else:
+                    st.write("Preview OK! Save karne ke liye button dabayein.")
+                    if st.button(" 💾  Data Save/Update Karein"):
+                        df_final = df[required_cols]
+                        df_final.to_sql('shipments', conn, if_exists='append', index=False)
+                        st.success(" ✅ Data successfully upload ho gaya!")
+                        st.rerun()
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"System Error: {e}")
                 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
