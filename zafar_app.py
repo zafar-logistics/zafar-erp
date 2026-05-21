@@ -599,6 +599,23 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                     st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}. (Check karein ke Excel ke column names database se match karte hain)")
+elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin", "Manager"]:
+        st.subheader(" 📤  Upload Master Excel Sheet")
+        uploaded_file = st.file_uploader("Excel file choose karein", type=["xlsx", "csv"])
+        
+        if uploaded_file is not None:
+            if uploaded_file.name.endswith('.csv'):
+                df_upload = pd.read_csv(uploaded_file)
+            else:
+                df_upload = pd.read_excel(uploaded_file)
+            
+            st.write("File Preview:")
+            st.dataframe(df_upload.head())
+            
+            if st.button(" 💾  Database mein Save Karein"):
+                df_upload.to_sql('shipments', conn, if_exists='append', index=False)
+                st.success(" ✅ Data save ho gaya!")
+                st.rerun()
 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
