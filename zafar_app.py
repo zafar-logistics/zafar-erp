@@ -585,37 +585,49 @@ elif menu == " 📤  Excel Upload" and st.session_state["user_role"] in ["Admin"
         
         if uploaded_file is not None:
             try:
+                # File read karein
                 df = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
-                st.write("File Preview:")
+                
+                # Database ke columns (yahi column names Excel mein hone chahiye)
+                # Aapki database table ke mutabiq:
+                # company_name, bank_name, indenter, file_no, shipper, pi_no, 
+                # fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks
+                
+                # Check: Agar Excel ke columns database se match nahi kar rahe, toh unhe map karein
+                # Agar aapki Excel file mein heading "Company Name" hai, toh woh "company_name" ban jayegi
+                mapping = {
+                    'Company Name': 'company_name',
+                    'Bank Name': 'bank_name',
+                    'Indenter': 'indenter',
+                    'File No': 'file_no',
+                    'Supplier Name': 'shipper',
+                    'PI No': 'pi_no',
+                    'FC Amount': 'fc_amount',
+                    'Currency': 'currency',
+                    'Type': 'shipment_type',
+                    'ETD': 'etd',
+                    'ETA': 'eta',
+                    'BL / LC No': 'bl_no',
+                    'Bank Docs': 'bank_docs',
+                    'Remarks': 'remarks'
+                }
+                
+                df = df.rename(columns=mapping)
+                
+                st.write("File Preview (System ye columns uthaye ga):")
                 st.dataframe(df.head())
 
                 if st.button(" 💾  Database mein Data Save Karein"):
-                    # Mapping: Left side (Excel Header) -> Right side (Database Column)
-                    mapping = {
-                        'Company Name': 'company_name',
-                        'Bank Name': 'bank_name',
-                        'Indenter': 'indenter',
-                        'File No': 'file_no',
-                        'Supplier Name': 'shipper',
-                        'PI No': 'pi_no',
-                        'FC Amount': 'fc_amount',
-                        'Currency': 'currency',
-                        'Type': 'shipment_type',
-                        'ETD': 'etd',
-                        'ETA': 'eta',
-                        'BL / LC No': 'bl_no',
-                        'Bank Docs': 'bank_docs',
-                        'Remarks': 'remarks'
-                    }
+                    # Sirf wahi columns jo database mein hain
+                    cols_to_use = ['company_name', 'bank_name', 'indenter', 'file_no', 'shipper', 
+                                   'pi_no', 'fc_amount', 'currency', 'shipment_type', 'etd', 'eta', 
+                                   'bl_no', 'bank_docs', 'remarks']
                     
-                    # Sirf wahi columns rakhein jo mapping mein hain
-                    df = df.rename(columns=mapping)
-                    columns_to_keep = [col for col in mapping.values() if col in df.columns]
-                    df_final = df[columns_to_keep]
+                    df_final = df[[c for c in cols_to_use if c in df.columns]]
                     
-                    # Database mein push karein
+                    # Data insert karein
                     df_final.to_sql('shipments', conn, if_exists='append', index=False)
-                    st.success(" ✅ Data successfully upload ho gaya!")
+                    st.success(" ✅ Data successfully save ho gaya!")
                     st.rerun()
             except Exception as e:
                 st.error(f"Error: {e}")
