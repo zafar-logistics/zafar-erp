@@ -273,7 +273,7 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                                   (str(row.get('company_name', '-')), str(row.get('bank_name', '-')), str(row.get('indenter', '-')), f_no, 
                                    str(row.get('shipper', '-')), str(row.get('fc_amount', '0')), str(row.get('currency', 'USD')), 
                                    str(row.get('shipment_type', 'FCL')), str(row.get('etd', '-')), str(row.get('eta', '-')), 
-                                   str(row.get('bl_no', '-')), str(row.get('bank_docs', 'Pending')), str(row.get('remarks', '-'))))
+                                   str(row.get('bl_no', '-')), str(row.get('bank_docs', 'Pending')), str(row.get('remarks', '-')),row.get('status', '-')))
                     
                     # 2. Item level breakdown check and mapping logic sequence
                     if 'item_name' in df_upload.columns and str(row['item_name']) != "-":
