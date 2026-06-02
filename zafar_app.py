@@ -19,9 +19,9 @@ ALL_AVAILABLE_COLUMNS = [
 def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
+                  company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
-                  shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
+                  shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, status TEXT, remarks TEXT)''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
