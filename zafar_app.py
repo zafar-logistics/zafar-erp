@@ -89,4 +89,9 @@ st.set_page_config(page_title="Zafar Logistics ERP", layout="wide")
 
 if "logged_in" not in st.session_state: 
     st.session_state["logged_in"] = False
-if "username" not in st.session_state
+if "username" not in st.session_state: 
+    st.session_state["username"] = ""
+if "user_role" not in st.session_state: 
+    st.session_state["user_role"] = ""
+
+# --- GLOBAL
