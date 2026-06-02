@@ -353,7 +353,7 @@ if menu == "📊 Dashboard":
     except:
         df = pd.read_sql('SELECT * FROM shipments', conn)
     if not df.empty and 'Company Name' not in df.columns:
-        cols_map = {'company name': 'Company Name', 'bank name': 'Bank Name', 'file no': 'File No', 'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name', 'fc amount': 'Total LC Value', 'currency': 'Currency', 'shipment type': 'Type', 'etd': 'ETD', 'eta': 'ETA', 'bl no': 'BL / LC No', 'bank docs': 'Bank Docs', 'remarks': 'Remarks'}
+        cols_map = {'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No', 'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name', 'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type', 'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'}
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
     for col in ALL_AVAILABLE_COLUMNS:
         if col not in df.columns: df[col] = "-"
