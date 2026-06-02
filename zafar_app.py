@@ -40,12 +40,19 @@ def init_db():
         conn.commit()
     except:
         pass
+    try:
+        c.execute('ALTER TABLE shipments ADD COLUMN status TEXT')
+    except:
+        pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
-    except: pass
+    except: 
+        pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
-    except: pass
+    except: 
+        pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
-    except: pass
+    except: 
+        pass
     conn.commit()
 
 init_db()
@@ -241,7 +248,7 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                 'Indenter': 'indenter', 'Supplier Name': 'shipper', 'Item Name': 'item_name',
                 'Brand Name': 'brand_name', 'HS Code': 'hs_code', 'Quantity': 'qty',
                 'Unit': 'unit', 'Unit Price': 'unit_price', 'Actual Costing (PKR)': 'actual_costing',
-                'Total LC Value': 'fc_amount', 'Currency': 'currency', 'Type': 'shipment_type',
+                'Total LC Value': 'fc_amount', 'Currency': 'currency', 'Type': 'shipment_type', 'Status': 'status', 
                 'ETD': 'etd', 'ETA': 'eta', 'BL / LC No': 'bl_no', 'Bank Docs': 'bank_docs', 'Remarks': 'remarks'
             }
             
