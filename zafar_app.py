@@ -19,9 +19,9 @@ ALL_AVAILABLE_COLUMNS = [
 def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT, 
+                  company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
                   shipper TEXT, pi_no TEXT, fc_amount TEXT, currency TEXT, 
-                  shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, status TEXT, remarks TEXT)''')
+                  shipment_type TEXT, etd TEXT, eta TEXT, bl_no TEXT, bank_docs TEXT, remarks TEXT)''')
     
     c.execute('''CREATE TABLE IF NOT EXISTS shipment_items 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -40,19 +40,13 @@ def init_db():
         conn.commit()
     except:
         pass
-    try:
-        c.execute('ALTER TABLE shipments ADD COLUMN status TEXT')
-    except:
-        pass
+
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
-    except: 
-        pass
+    except: pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
-    except: 
-        pass
+    except: pass
     try: c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
-    except: 
-        pass
+    except: pass
     conn.commit()
 
 init_db()
@@ -228,72 +222,6 @@ available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / E
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
 
-# --- 📥 SIDEBAR EXCEL/CSV FILE UPLOAD FEATURE ---
-if st.session_state["user_role"] in ["Admin", "Manager"]:
-    st.sidebar.markdown("---")
-    st.sidebar.write("📥 **Bulk Import Data (Excel / CSV)**")
-    uploaded_file = st.sidebar.file_uploader("Upload Master Sheet to Fill Dashboard:", type=["xlsx", "csv"])
-    
-    if uploaded_file is not None:
-        try:
-            # File Type matching logic
-            if uploaded_file.name.endswith('.csv'):
-                df_upload = pd.read_csv(uploaded_file)
-            else:
-                df_upload = pd.read_excel(uploaded_file)
-                
-            # Column mapping dictionary to standardize user input fields to database structure
-            col_mapping = {
-                'Company Name': 'company_name', 'Bank Name': 'bank_name', 'File No': 'file_no',
-                'Indenter': 'indenter', 'Supplier Name': 'shipper', 'Item Name': 'item_name',
-                'Brand Name': 'brand_name', 'HS Code': 'hs_code', 'Quantity': 'qty',
-                'Unit': 'unit', 'Unit Price': 'unit_price', 'Actual Costing (PKR)': 'actual_costing',
-                'Total LC Value': 'fc_amount', 'Currency': 'currency', 'Type': 'shipment_type', 'Status': 'status', 
-                'ETD': 'etd', 'ETA': 'eta', 'BL / LC No': 'bl_no', 'Bank Docs': 'bank_docs', 'Remarks': 'remarks'
-            }
-            
-            # Rename columns if they exist in standard clean layout formats
-            df_upload.rename(columns={k: v for k, v in col_mapping.items() if k in df_upload.columns}, inplace=True)
-            
-            if 'file_no' in df_upload.columns:
-                success_count = 0
-                # Fill missing identity columns with safe string placeholders
-                df_upload = df_upload.fillna("-")
-                
-                for _, row in df_upload.iterrows():
-                    f_no = str(row['file_no']).strip()
-                    if not f_no or f_no == "-":
-                        continue
-                        
-                    # 1. Main shipments table data check and execution structure
-                    c.execute("SELECT 1 FROM shipments WHERE file_no=?", (f_no,))
-                    if not c.fetchone():
-                        c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
-                                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''', 
-                                  (str(row.get('company_name', '-')), str(row.get('bank_name', '-')), str(row.get('indenter', '-')), f_no, 
-                                   str(row.get('shipper', '-')), str(row.get('fc_amount', '0')), str(row.get('currency', 'USD')), 
-                                   str(row.get('shipment_type', 'FCL')), str(row.get('etd', '-')), str(row.get('eta', '-')), 
-                                   str(row.get('bl_no', '-')), str(row.get('bank_docs', 'Pending')), str(row.get('remarks', '-')),row.get('status', '-')))
-                    
-                    # 2. Item level breakdown check and mapping logic sequence
-                    if 'item_name' in df_upload.columns and str(row['item_name']) != "-":
-                        c.execute("SELECT 1 FROM shipment_items WHERE file_no=? AND item_name=?", (f_no, str(row['item_name'])))
-                        if not c.fetchone():
-                            c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
-                                         VALUES (?,?,?,?,?,?,?,?)''', 
-                                      (f_no, str(row['item_name']), str(row.get('brand_name', '-')), str(row.get('hs_code', '-')), 
-                                       str(row.get('qty', '0')), str(row.get('unit', 'KG')), str(row.get('unit_price', '0')), str(row.get('actual_costing', '-'))))
-                    
-                    success_count += 1
-                
-                conn.commit()
-                st.sidebar.success(f"✅ Master Sheet processed! {success_count} entries synchronised.")
-                st.rerun()
-            else:
-                st.sidebar.error("Error: Uploaded sheet must contain a 'File No' column.")
-        except Exception as e:
-            st.sidebar.error(f"File reading error: {e}")
-
 # --- 📈 SIDEBAR GRAPH HISTORY FEATURE ---
 st.sidebar.markdown("---")
 st.sidebar.write("🔍 **Item Rate Analysis History Graph**")
@@ -344,6 +272,7 @@ if menu == "📊 Dashboard":
         c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
         rights_res = c.fetchone()
         allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
+
     try:
         query = '''
             SELECT 
@@ -359,11 +288,14 @@ if menu == "📊 Dashboard":
         df = pd.read_sql(query, conn)
     except:
         df = pd.read_sql('SELECT * FROM shipments', conn)
+
     if not df.empty and 'Company Name' not in df.columns:
         cols_map = {'company_name': 'Company Name', 'bank_name': 'Bank Name', 'file_no': 'File No', 'indenter': 'Indenter', 'shipper': 'Supplier Name', 'items': 'Item Name', 'fc_amount': 'Total LC Value', 'currency': 'Currency', 'shipment_type': 'Type', 'etd': 'ETD', 'eta': 'ETA', 'bl_no': 'BL / LC No', 'bank_docs': 'Bank Docs', 'remarks': 'Remarks'}
         df.rename(columns={k: v for k, v in cols_map.items() if k in df.columns}, inplace=True)
+
     for col in ALL_AVAILABLE_COLUMNS:
         if col not in df.columns: df[col] = "-"
+
     if not df.empty:
         today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         
@@ -371,6 +303,7 @@ if menu == "📊 Dashboard":
         total_count = len(df['File No'].unique())
         done_count = 0
         pending_count = 0
+
         def calculated_status(row):
             global done_count, pending_count
             f_no = str(row['File No']).strip()
@@ -384,6 +317,7 @@ if menu == "📊 Dashboard":
                 all_live_alerts.append(f"🚢 File No: {f_no} — AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
+
             if eta_dt and (today - eta_dt).days >= 7:
                 return "Complete"
             if eta_dt:
@@ -394,12 +328,14 @@ if menu == "📊 Dashboard":
                 if etd_dt <= today: return "Shipped"
                 
             return "LC Opening"
+
         df['Status'] = df.apply(calculated_status, axis=1)
         
         # Calculate distinct counts for visual blocks
         done_count = len(df[df['Status'] == 'Complete']['File No'].unique())
         arrived_count = len(df[df['Status'] == 'Arrived']['File No'].unique())
         pending_count = total_count - done_count
+
         # 🌟 1. PREMIUM GLASSMORPHISM SUMMARY CARDS INJECTOR
         st.markdown(f"""
             <div class="glass-card-wrapper">
@@ -433,11 +369,13 @@ if menu == "📊 Dashboard":
                 </div>
             </div>
         """, unsafe_allow_html=True)
+
         # 🌟 2. SIDEBAR ALERTS BLOCK (CLEAN & MINIMAL)
         if all_live_alerts:
             with st.sidebar.expander("🔔 SYSTEM LIVE ALERTS", expanded=True):
                 for alert_msg in set(all_live_alerts):
                     st.info(alert_msg)
+
         c_top1, c_top2 = st.columns([2, 5])
         with c_top1:
             st.markdown('<div class="custom-card"><div class="card-title">📥 Operations Actions</div>', unsafe_allow_html=True)
@@ -453,24 +391,29 @@ if menu == "📊 Dashboard":
             sel_bank = f2.multiselect("Opening Bank:", BANKS)
             search = f3.text_input("Global Search Keywords:", placeholder="Type to filter...")
             st.markdown('</div>', unsafe_allow_html=True)
+
         if 'Company Name' in df.columns and sel_comp: df = df[df['Company Name'].isin(sel_comp)]
         if 'Bank Name' in df.columns and sel_bank: df = df[df['Bank Name'].isin(sel_bank)]
         if search: df = df[df.astype(str).apply(lambda x: x.str.contains(search, case=False)).any(axis=1)]
+
         display_cols = [c for c in allowed_display_cols if c in df.columns]
         df_display = df[display_cols]
         df_display.reset_index(drop=True, inplace=True)
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
+
         # 🌟 5. EXTREMELY CLEAN GLASS-STYLE DYNAMIC COLOR CODES PER CELL/ROW
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;' 
-                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;' 
-                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;' 
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;' 
-                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;' 
+                # Minimalist Soft Colors Matching the User's Image Layout
+                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;' # Soft Emerald Mint
+                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;' # Gray Outline Archival
+                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;' # Crimson Rose Line
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;' # Soft Lavender Amber Tint
+                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;' # Sky Blue
             return [color] * len(row)
+
         try:
             styled_df = df_display.style.apply(style_rows, axis=1)
             st.dataframe(styled_df, use_container_width=True, hide_index=False)
@@ -484,6 +427,7 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
     past_suppliers = get_distinct_values("shipper")
     past_indenters = get_distinct_values("indenter")
     past_items = get_distinct_values("item_name", "shipment_items")
+
     with st.form("add_form", clear_on_submit=True):
         col_top1, col_top2 = st.columns(2)
         company_name = col_top1.selectbox("Company Name", COMPANIES)
@@ -536,7 +480,7 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
             if not file_no: st.error("File No likhna zaroori hai!")
             else:
                 try:
-                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, str(indenter), file_no, str(shipper), pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
+                    c.execute('''INSERT INTO shipments (company_name, bank_name, indenter, file_no, shipper, pi_no, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''', (company_name, bank_name, str(indenter), file_no, str(shipper), pi_no, fc_amount, currency, ship_type, etd, eta, bl_no, bank_docs, remarks))
                     for item in items_inputs:
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) VALUES (?,?,?,?,?,?,?,?)''', (file_no, item[0], item[1], str(item[2]), item[3], item[4], item[5], item[6]))
                     conn.commit()
@@ -561,6 +505,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 for k in keys_list:
                     if k in row_obj: return row_obj[k]
                 return default
+
             comp_val = get_val(row, ['company_name', 'COMPANY_NAME'])
             bank_val = get_val(row, ['bank_name', 'BANK_NAME'])
             ind_val = get_val(row, ['indenter', 'INDENTER'])
@@ -573,6 +518,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
             bl_val = get_val(row, ['bl_no', 'BL__LC_NO', 'bl_no'])
             docs_val = get_val(row, ['bank_docs', 'BANK_DOCS'])
             rem_val = get_val(row, ['remarks', 'REMARKS'])
+
             u_comp = u1.selectbox("Company", COMPANIES, index=COMPANIES.index(comp_val) if comp_val in COMPANIES else 0)
             u_bank = u2.selectbox("Bank", BANKS, index=BANKS.index(bank_val) if bank_val in BANKS else 0)
             u_indenter = u1.text_input("Indenter", value=str(ind_val))
@@ -653,6 +599,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         st.rerun()
                     except: st.error("Error: Username pehle se dakhil hai.")
                 else: st.error("Fields bhanna zaroori hain.")
+
     with m_col2:
         st.write("##### 🔄 Password Badlein ya Account Delete Karein")
         df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
@@ -670,6 +617,7 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                 c.execute("DELETE FROM users WHERE username=?", (target_user,))
                 c.execute("DELETE FROM user_column_rights WHERE username=?", (target_user,))
                 conn.commit(); st.rerun()
+
     st.markdown("---")
     st.write("##### 🎛️ Assign Column-Level Visibility Rights")
     df_all_users_raw = pd.read_sql("SELECT username FROM users", conn)
