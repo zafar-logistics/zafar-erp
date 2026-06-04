@@ -17,6 +17,7 @@ ALL_AVAILABLE_COLUMNS = [
 ]
 
 def init_db():
+    # Base tables agar pehle se nahi bani toh banengi
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
@@ -34,18 +35,35 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS user_column_rights 
                  (username TEXT PRIMARY KEY, allowed_columns TEXT)''')
     
+    # 🌟 CRITICAL FIX: Agar koi column purani database file me missing hai to usay yahan force-add karein
+    columns_to_ensure_shipments = [
+        ('company_name', 'TEXT'), ('bank_name', 'TEXT'), ('indenter', 'TEXT'), 
+        ('shipper', 'TEXT'), ('pi_no', 'TEXT'), ('fc_amount', 'TEXT'), 
+        ('currency', 'TEXT'), ('shipment_type', 'TEXT'), ('etd', 'TEXT'), 
+        ('eta', 'TEXT'), ('bl_no', 'TEXT'), ('bank_docs', 'TEXT'), ('remarks', 'TEXT')
+    ]
+    for col, col_type in columns_to_ensure_shipments:
+        try:
+            c.execute(f"ALTER TABLE shipments ADD COLUMN {col} {col_type}")
+        except:
+            pass # Column pehle se hai to skip hojayega
+            
+    columns_to_ensure_items = [
+        ('brand_name', 'TEXT'), ('hs_code', 'TEXT'), ('qty', 'TEXT'), 
+        ('unit', 'TEXT'), ('unit_price', 'TEXT'), ('actual_costing', 'TEXT')
+    ]
+    for col, col_type in columns_to_ensure_items:
+        try:
+            c.execute(f"ALTER TABLE shipment_items ADD COLUMN {col} {col_type}")
+        except:
+            pass
+
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
         c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES ('zafar', ?)", (json.dumps(ALL_AVAILABLE_COLUMNS),))
         conn.commit()
     except:
         pass
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN brand_name TEXT')
-    except: pass
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN hs_code TEXT')
-    except: pass
-    try: c.execute('ALTER TABLE shipment_items ADD COLUMN actual_costing TEXT')
-    except: pass
     conn.commit()
 
 init_db()
@@ -212,7 +230,7 @@ st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-botto
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
 
-# 📥 NEW FEATURE: LEFT SIDEBAR EXCEL FILE UPLOADER
+# 📥 EXCEL/CSV BULK UPLOADER IN SIDEBAR
 if st.session_state["user_role"] in ["Admin", "Manager"]:
     st.sidebar.markdown("### 📊 Bulk Upload Excel Data")
     uploaded_file = st.sidebar.file_uploader("Upload Master Sheet (Excel/CSV)", type=["xlsx", "xls", "csv"], key="bulk_excel_uploader")
@@ -224,7 +242,10 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
             else:
                 df_upload = pd.read_excel(uploaded_file)
             
-            # Formatting and handling exact column variations from image_5d507f.jpg
+            # Clean spaces from column headings
+            df_upload.columns = [str(c).strip() for c in df_upload.columns]
+            
+            # Mapping standard excel headers to excel names to avoid casing issues
             rename_dict = {
                 'S.No': 'S.No', 'S.NO': 'S.No', 'S.No.': 'S.No',
                 'BL/LC No': 'BL / LC No', 'BL/LC NO': 'BL / LC No', 'BL / LC No': 'BL / LC No', 'BL / LC NO': 'BL / LC No',
@@ -234,7 +255,6 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                 'Type': 'Type', 'Shipment Type': 'Type'
             }
             df_upload.rename(columns=rename_dict, inplace=True)
-            df_upload.columns = [c.strip() for c in df_upload.columns]
             
             if 'File No' in df_upload.columns:
                 success_count = 0
@@ -243,7 +263,7 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                     if pd.isna(row['File No']) or f_no in ["", "-", "None", "nan"]:
                         continue
                     
-                    # Core Fields mapping
+                    # Read values safely from file row
                     comp = str(row.get('Company Name', '-')).strip()
                     bnk = str(row.get('Bank Name', '-')).strip()
                     ind = str(row.get('Indenter', '-')).strip()
@@ -257,7 +277,6 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                     b_docs = str(row.get('Bank Docs', 'Pending')).strip()
                     rem = str(row.get('Remarks', '-')).strip()
                     
-                    # Item Details mapping
                     itm_name = str(row.get('Item Name', '-')).strip()
                     brnd = str(row.get('Brand Name', '-')).strip()
                     hsc = str(row.get('HS Code', '-')).strip()
@@ -266,13 +285,12 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                     u_prc = str(row.get('Unit Price', '-')).strip()
                     act_cost = str(row.get('Actual Costing (PKR)', '-')).strip()
                     
-                    # Update or Insert master shipment records
+                    # Database matching operations
                     c.execute('''INSERT OR REPLACE INTO shipments 
                                  (company_name, bank_name, indenter, file_no, shipper, fc_amount, currency, shipment_type, etd, eta, bl_no, bank_docs, remarks) 
                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                               (comp, bnk, ind, f_no, sup, tlc, curr, stype, etd_val, eta_val, bl_val, b_docs, rem))
                     
-                    # Clean previous items for this file and sync item row
                     c.execute("DELETE FROM shipment_items WHERE file_no=?", (f_no,))
                     if itm_name != "-":
                         c.execute('''INSERT INTO shipment_items (file_no, item_name, brand_name, hs_code, qty, unit, unit_price, actual_costing) 
@@ -281,12 +299,12 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
                     success_count += 1
                 
                 conn.commit()
-                st.sidebar.success(f"✅ {success_count} Records Uploaded/Synced!")
+                st.sidebar.success(f"✅ Successfully Processed {success_count} Records!")
                 st.rerun()
             else:
-                st.sidebar.error("❌ Heading Error: Sheet me 'File No' ka column hona lazmi hai.")
+                st.sidebar.error("❌ Column Heading Error: Excel sheet me 'File No' ka naam check karein.")
         except Exception as e:
-            st.sidebar.error(f"Error reading file: {e}")
+            st.sidebar.error(f"Error handling database entry: {e}")
     st.sidebar.markdown("---")
 
 available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
@@ -342,6 +360,7 @@ if menu == "📊 Dashboard":
         c.execute("SELECT allowed_columns FROM user_column_rights WHERE username=?", (st.session_state["username"],))
         rights_res = c.fetchone()
         allowed_display_cols = json.loads(rights_res[0]) if rights_res else ['Company Name', 'Bank Name', 'File No', 'Item Name', 'Status']
+    
     try:
         query = '''
             SELECT 
