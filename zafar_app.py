@@ -17,7 +17,16 @@ ALL_AVAILABLE_COLUMNS = [
 ]
 
 def init_db():
-    # Base tables agar pehle se nahi bani toh banengi
+    # 🌟 CRITICAL REPAIR FORCE: Agar purani table me column ka masla ho to usay fresh create karne ke liye reset mechanism
+    try:
+        c.execute("SELECT company_name FROM shipments LIMIT 1")
+    except sqlite3.OperationalError:
+        # Agar company_name column nahi milta to purani table drop karke fresh sahi table banegi
+        c.execute("DROP TABLE IF EXISTS shipments")
+        c.execute("DROP TABLE IF EXISTS shipment_items")
+        conn.commit()
+
+    # Fresh aur correct columns ke sath tables creation
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
@@ -35,19 +44,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS user_column_rights 
                  (username TEXT PRIMARY KEY, allowed_columns TEXT)''')
     
-    # 🌟 CRITICAL FIX: Agar koi column purani database file me missing hai to usay yahan force-add karein
-    columns_to_ensure_shipments = [
-        ('company_name', 'TEXT'), ('bank_name', 'TEXT'), ('indenter', 'TEXT'), 
-        ('shipper', 'TEXT'), ('pi_no', 'TEXT'), ('fc_amount', 'TEXT'), 
-        ('currency', 'TEXT'), ('shipment_type', 'TEXT'), ('etd', 'TEXT'), 
-        ('eta', 'TEXT'), ('bl_no', 'TEXT'), ('bank_docs', 'TEXT'), ('remarks', 'TEXT')
-    ]
-    for col, col_type in columns_to_ensure_shipments:
-        try:
-            c.execute(f"ALTER TABLE shipments ADD COLUMN {col} {col_type}")
-        except:
-            pass # Column pehle se hai to skip hojayega
-            
+    # Ensure items tables basic structural integrity 
     columns_to_ensure_items = [
         ('brand_name', 'TEXT'), ('hs_code', 'TEXT'), ('qty', 'TEXT'), 
         ('unit', 'TEXT'), ('unit_price', 'TEXT'), ('actual_costing', 'TEXT')
@@ -245,7 +242,7 @@ if st.session_state["user_role"] in ["Admin", "Manager"]:
             # Clean spaces from column headings
             df_upload.columns = [str(c).strip() for c in df_upload.columns]
             
-            # Mapping standard excel headers to excel names to avoid casing issues
+            # Mapping standard excel headers to avoid configuration casing mismatches
             rename_dict = {
                 'S.No': 'S.No', 'S.NO': 'S.No', 'S.No.': 'S.No',
                 'BL/LC No': 'BL / LC No', 'BL/LC NO': 'BL / LC No', 'BL / LC No': 'BL / LC No', 'BL / LC NO': 'BL / LC No',
