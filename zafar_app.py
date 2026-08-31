@@ -17,6 +17,7 @@ ALL_AVAILABLE_COLUMNS = [
 ]
 
 def init_db():
+    # 1. Tables Create Karna (Agar majood na hon)
     c.execute('''CREATE TABLE IF NOT EXISTS shipments 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   company_name TEXT, bank_name TEXT, indenter TEXT, file_no TEXT UNIQUE, 
@@ -34,6 +35,15 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS user_column_rights 
                  (username TEXT PRIMARY KEY, allowed_columns TEXT)''')
     
+    # 2. PURANA SHIPMENT DATA DELETE KARNA (Resetting Tables Data)
+    try:
+        c.execute("DELETE FROM shipments")
+        c.execute("DELETE FROM shipment_items")
+        c.execute("DELETE FROM sqlite_sequence WHERE name='shipments' OR name='shipment_items'")
+    except Exception as e:
+        pass
+
+    # 3. Default Admin User & Rights (Zafar) Insert / Preserve
     try:
         c.execute("INSERT OR IGNORE INTO users (username, password, role) VALUES ('zafar', 'zafar786', 'Admin')")
         c.execute("INSERT OR REPLACE INTO user_column_rights (username, allowed_columns) VALUES ('zafar', ?)", (json.dumps(ALL_AVAILABLE_COLUMNS),))
@@ -217,7 +227,6 @@ if not st.session_state["logged_in"]:
 st.sidebar.markdown(f"<h3 style='color: #e67e22; font-weight: bold; margin-bottom:0px;'>👤 {st.session_state['username'].upper()}</h3>", unsafe_allow_html=True)
 st.sidebar.markdown(f"**Security Profile:** `{st.session_state['user_role']}`")
 st.sidebar.markdown("---")
-
 available_options = ["📊 Dashboard", "📝 Nayi Entry (Add)", "🔄 Update / Edit"]
 if st.session_state["user_role"] == "Admin": available_options.append("👥 Manage Users / Accounts")
 menu = st.sidebar.radio("Navigation Menu:", available_options)
@@ -317,7 +326,6 @@ if menu == "📊 Dashboard":
                 all_live_alerts.append(f"🚢 File No: {f_no} — AAJ CHALEGA!")
             if eta_dt and eta_dt <= today and (today - eta_dt).days <= 6:
                 all_live_alerts.append(f"⚓ File No: {f_no} — PORT PE LAG GAYA HAI!")
-
             if eta_dt and (today - eta_dt).days >= 7:
                 return "Complete"
             if eta_dt:
@@ -331,12 +339,10 @@ if menu == "📊 Dashboard":
 
         df['Status'] = df.apply(calculated_status, axis=1)
         
-        # Calculate distinct counts for visual blocks
         done_count = len(df[df['Status'] == 'Complete']['File No'].unique())
         arrived_count = len(df[df['Status'] == 'Arrived']['File No'].unique())
         pending_count = total_count - done_count
 
-        # 🌟 1. PREMIUM GLASSMORPHISM SUMMARY CARDS INJECTOR
         st.markdown(f"""
             <div class="glass-card-wrapper">
                 <div class="glass-card" style="border-left: 4px solid #38bdf8;">
@@ -370,7 +376,6 @@ if menu == "📊 Dashboard":
             </div>
         """, unsafe_allow_html=True)
 
-        # 🌟 2. SIDEBAR ALERTS BLOCK (CLEAN & MINIMAL)
         if all_live_alerts:
             with st.sidebar.expander("🔔 SYSTEM LIVE ALERTS", expanded=True):
                 for alert_msg in set(all_live_alerts):
@@ -402,16 +407,14 @@ if menu == "📊 Dashboard":
         df_display.index = df_display.index + 1
         df_display.index.name = "S.No"
 
-        # 🌟 5. EXTREMELY CLEAN GLASS-STYLE DYNAMIC COLOR CODES PER CELL/ROW
         def style_rows(row):
             color = ''
             if 'Status' in row.index:
-                # Minimalist Soft Colors Matching the User's Image Layout
-                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;' # Soft Emerald Mint
-                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;' # Gray Outline Archival
-                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;' # Crimson Rose Line
-                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;' # Soft Lavender Amber Tint
-                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;' # Sky Blue
+                if row['Status'] == 'Arrived': color = 'background-color: #f0fdf4; color: #166534; font-weight: 500;'
+                elif row['Status'] == 'Complete': color = 'background-color: #fafafa; color: #94a3b8; opacity: 0.7;'
+                elif row['Status'] == 'Query': color = 'background-color: #fef2f2; color: #991b1b;'
+                elif row['Status'] == 'Shipment on way': color = 'background-color: #fffbeb; color: #92400e;'
+                elif row['Status'] == 'Shipped': color = 'background-color: #f0f9ff; color: #075985;'
             return [color] * len(row)
 
         try:
@@ -419,7 +422,8 @@ if menu == "📊 Dashboard":
             st.dataframe(styled_df, use_container_width=True, hide_index=False)
         except:
             st.dataframe(df_display, use_container_width=True, hide_index=False)
-    else: st.info("System mein koi data majood nahi hai.")
+    else: 
+        st.info("System mein koi data majood nahi hai. Please '📝 Nayi Entry (Add)' se data add karein.")
 
 # --- 2. NAYI ENTRY ---
 elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admin", "Manager"]:
@@ -452,7 +456,7 @@ elif menu == "📝 Nayi Entry (Add)" and st.session_state["user_role"] in ["Admi
             st.write(f"**Item #{i}:**")
             it1, it_b, it_hs, it2, it3, it4, it5 = st.columns([3, 2, 2, 1, 1, 2, 2])
             
-            name = it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
+            name = it1.text_input(f"Item Name #{i}", key=f"add_item_name_txt_{i}") if not past_items else it1.selectbox(f"Item Name #{i}", [""] + past_items, key=f"add_item_name_drop_{i}")
             brand = it_b.text_input("Brand Name", key=f"add_brand_{i}")
             
             hs_suggestions = get_hs_codes_for_item(name) if name else []
@@ -505,7 +509,6 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 for k in keys_list:
                     if k in row_obj: return row_obj[k]
                 return default
-
             comp_val = get_val(row, ['company_name', 'COMPANY_NAME'])
             bank_val = get_val(row, ['bank_name', 'BANK_NAME'])
             ind_val = get_val(row, ['indenter', 'INDENTER'])
@@ -546,7 +549,7 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                     ex_price = get_val(item_row, ['unit_price', 'UNIT_PRICE'])
                     ex_cost = get_val(item_row, ['actual_costing', 'ACTUAL_COSTING'])
                 
-                u_name = it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
+                u_name = it_col1.text_input("Item Name", value=str(ex_name), key=f"u_name_txt_{file_to_update}_{idx}") if not past_items else it_col1.selectbox("Item Name", [""] + past_items, index=past_items.index(ex_name)+1 if ex_name in past_items else 0, key=f"u_name_{file_to_update}_{idx}")
                 u_brand = it_col_b.text_input("Brand", value=str(ex_brand), key=f"u_brand_{file_to_update}_{idx}")
                 
                 hs_suggestions = get_hs_codes_for_item(u_name) if u_name else []
@@ -577,6 +580,8 @@ elif menu == "🔄 Update / Edit" and st.session_state["user_role"] in ["Admin",
                 conn.commit()
                 st.success("✅ Records updated successfully!")
                 st.rerun()
+    else:
+        st.info("System me koi data nahi hai edit karne ke liye.")
 
 # --- 5. MANAGE ACCOUNTS PANEL ---
 elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] == "Admin":
@@ -599,7 +604,6 @@ elif menu == "👥 Manage Users / Accounts" and st.session_state["user_role"] ==
                         st.rerun()
                     except: st.error("Error: Username pehle se dakhil hai.")
                 else: st.error("Fields bhanna zaroori hain.")
-
     with m_col2:
         st.write("##### 🔄 Password Badlein ya Account Delete Karein")
         df_users_list = pd.read_sql("SELECT username FROM users WHERE username != 'zafar'", conn)
