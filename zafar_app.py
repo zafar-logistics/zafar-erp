@@ -258,7 +258,7 @@ st.sidebar.markdown("<br><br>", unsafe_allow_html=True)
 if st.sidebar.button("🚪 LOGOUT SYSTEM", use_container_width=True):
     st.session_state["logged_in"] = False; st.rerun()
 
-BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank"]
+BANKS = ["Bank Al Habib", "Habib Metro", "Meezan Bank", "United Bank"]
 COMPANIES = ["Haa Meem Pvt Ltd", "Fine Trading Corporation", "Haa Meem AOP"]
 CURRENCIES = ["USD", "CNY", "EUR", "PKR"]
 UNITS = ["KG", "MT", "DRUMS", "BAGS"]
